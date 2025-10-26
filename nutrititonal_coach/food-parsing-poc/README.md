@@ -61,7 +61,7 @@ Edit `.env` and add your credentials:
 4. Set up the database:
 ```bash
 npx prisma migrate dev --name init
-npx prisma db seed  # Seed with common foods
+npx prisma db seed  # Seed with common foods (including milk variants)
 ```
 
 5. Generate Prisma Client:
