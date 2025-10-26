@@ -1,3 +1,4 @@
+import type { Food } from '@prisma/client'
 import { prisma } from './prisma'
 import type { ParsedFoodItem } from './openai'
 import * as levenshtein from 'fast-levenshtein'
@@ -41,7 +42,7 @@ function normalizeFoodName(name: string): string {
 }
 
 interface FoodMatch {
-  food: any
+  food: Food
   confidence: number
   matchType: 'exact' | 'normalized' | 'levenshtein' | 'substring'
 }

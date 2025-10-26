@@ -1,25 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import {
   OnboardingInput,
   calculateDailyTargets,
 } from '@/lib/profile'
 
-function normalizeOnboardingPayload(payload: any): OnboardingInput {
+const OnboardingPayloadSchema = z.object({
+  name: z.string().trim().min(1).optional(),
+  heightCm: z.coerce.number(),
+  weightKg: z.coerce.number(),
+  age: z.coerce.number(),
+  gender: z.string().trim(),
+  activityLevel: z.string().trim(),
+  goal: z.string().trim(),
+  dietPreference: z.string().trim(),
+  mealPattern: z.string().trim().optional(),
+})
+
+function normalizeOnboardingPayload(payload: unknown): OnboardingInput {
   if (!payload) {
     throw new Error('Profile payload is required')
   }
 
+  const parsed = OnboardingPayloadSchema.parse(payload)
+
   return {
-    name: payload.name?.trim() || undefined,
-    heightCm: Number(payload.heightCm),
-    weightKg: Number(payload.weightKg),
-    age: Number(payload.age),
-    gender: payload.gender,
-    activityLevel: payload.activityLevel,
-    goal: payload.goal,
-    dietPreference: payload.dietPreference,
-    mealPattern: payload.mealPattern,
+    name: parsed.name ?? undefined,
+    heightCm: parsed.heightCm,
+    weightKg: parsed.weightKg,
+    age: parsed.age,
+    gender: parsed.gender,
+    activityLevel: parsed.activityLevel,
+    goal: parsed.goal,
+    dietPreference: parsed.dietPreference,
+    mealPattern: parsed.mealPattern,
   }
 }
 

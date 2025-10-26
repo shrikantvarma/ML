@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   BarChart3,
   Calendar,
@@ -613,12 +613,10 @@ function Dashboard({
 
 function ChatLogger({
   userId,
-  profile,
   onClose,
   onMealLogged,
 }: {
   userId: string
-  profile: Profile
   onClose: () => void
   onMealLogged: () => void
 }) {
@@ -631,6 +629,10 @@ function ChatLogger({
   const [agentResults, setAgentResults] = useState<Map<string, AgentMatchState>>(new Map())
   const [agentSearching, setAgentSearching] = useState<string | null>(null)
   const [agentSaving, setAgentSaving] = useState<string | null>(null)
+
+  const unmatchedFoods =
+    currentResult?.nutrition.foods.filter((food) => !food.matched) ?? []
+  const hasUnmatched = unmatchedFoods.length > 0
 
   const requestParse = async (rawInput: string): Promise<ParseResult> => {
     const response = await fetch('/api/parse-food', {
@@ -881,11 +883,7 @@ function ChatLogger({
           </div>
         ))}
 
-        {currentResult && (() => {
-          const unmatchedFoods = currentResult.nutrition.foods.filter((food) => !food.matched)
-          const hasUnmatched = unmatchedFoods.length > 0
-
-          return (
+        {currentResult && (
           <div className="bg-white border border-green-200 rounded-2xl p-4 shadow-sm space-y-4">
             <div className="flex items-center justify-between">
               <div>
@@ -1147,8 +1145,6 @@ function ChatLogger({
                 : 'Save meal to day'}
             </button>
           </div>
-          )
-        })()}
         )}
 
         {error && (
@@ -1325,12 +1321,13 @@ export default function HomePage() {
     }
   }
 
-  const refreshSummary = async (id = userId) => {
-    if (!id) return
+  const refreshSummary = useCallback(async (id?: string) => {
+    const targetId = id ?? userId
+    if (!targetId) return
     setLoadingSummary(true)
 
     const response = await fetch(
-      `/api/daily-summary?userId=${id}&date=${new Date().toISOString()}`,
+      `/api/daily-summary?userId=${targetId}&date=${new Date().toISOString()}`,
       {
         cache: 'no-store',
       }
@@ -1342,7 +1339,7 @@ export default function HomePage() {
     }
 
     setLoadingSummary(false)
-  }
+  }, [userId])
 
   useEffect(() => {
     loadProfile().catch((error) => {
@@ -1352,7 +1349,7 @@ export default function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const handleOnboardingComplete = (result: { userId: string; profile: Profile }) => {
+  const handleOnboardingComplete = useCallback((result: { userId: string; profile: Profile }) => {
     setUserId(result.userId)
     setProfile(result.profile)
     if (typeof window !== 'undefined') {
@@ -1360,7 +1357,7 @@ export default function HomePage() {
     }
     setScreen('home')
     refreshSummary(result.userId)
-  }
+  }, [refreshSummary])
 
   const mainView = useMemo(() => {
     if (screen === 'onboarding' || (!profile && screen !== 'loading')) {
@@ -1384,7 +1381,6 @@ export default function HomePage() {
       return (
         <ChatLogger
           userId={userId}
-          profile={profile}
           onClose={() => setScreen('home')}
           onMealLogged={() => refreshSummary(userId)}
         />
@@ -1412,7 +1408,7 @@ export default function HomePage() {
         onEditProfile={() => setScreen('onboarding')}
       />
     )
-  }, [screen, profile, userId, summary])
+  }, [screen, profile, userId, summary, refreshSummary, handleOnboardingComplete])
 
   return (
     <div className="min-h-screen bg-gray-50">
