@@ -68,6 +68,14 @@ interface ParsedFood {
   unit: string
 }
 
+interface MatchAttempt {
+  level: 'exact' | 'normalized' | 'levenshtein' | 'substring' | 'brand'
+  candidateName: string
+  detail: string
+  confidence: number
+  matched: boolean
+}
+
 interface NutritionFood {
   foodId: string | null
   foodName: string
@@ -81,6 +89,7 @@ interface NutritionFood {
   matched: boolean
   confidence?: number
   suggestedName?: string
+  trace?: MatchAttempt[]
 }
 
 interface AgentValidation {
@@ -90,10 +99,23 @@ interface AgentValidation {
   notes?: string
 }
 
+interface AgentDebug {
+  nutrition: {
+    prompt: string
+    rawResponse: unknown
+  }
+  validation: {
+    prompt: string
+    rawResponse: unknown
+  }
+}
+
 interface AgentMatchState {
   loading: boolean
   foodData: FoodNutritionData | null
   validation: AgentValidation | null
+  debug?: AgentDebug
+  error?: string
 }
 
 interface ParseResult {
@@ -102,6 +124,10 @@ interface ParseResult {
   nutrition: {
     foods: NutritionFood[]
     totals: Record<'calories' | 'protein' | 'carbs' | 'fat' | 'fiber', number>
+  }
+  debug?: {
+    generatedAt: string
+    totalFoods: number
   }
 }
 
@@ -629,6 +655,7 @@ function ChatLogger({
   const [agentResults, setAgentResults] = useState<Map<string, AgentMatchState>>(new Map())
   const [agentSearching, setAgentSearching] = useState<string | null>(null)
   const [agentSaving, setAgentSaving] = useState<string | null>(null)
+  const [showDebug, setShowDebug] = useState(false)
 
   const unmatchedFoods =
     currentResult?.nutrition.foods.filter((food) => !food.matched) ?? []
@@ -670,6 +697,7 @@ function ChatLogger({
     setAgentSearching(null)
     setAgentSaving(null)
     setCurrentResult(null)
+    setShowDebug(false)
 
     try {
       const data = await requestParse(userMessage.text)
@@ -701,6 +729,8 @@ function ChatLogger({
         loading: true,
         foodData: null,
         validation: null,
+        debug: undefined,
+        error: undefined,
       })
       return next
     })
@@ -728,14 +758,24 @@ function ChatLogger({
           loading: false,
           foodData: data.data.foodData,
           validation: data.data.validation,
+          debug: data.data.debug,
+          error: undefined,
         })
         return next
       })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Agent failed to find food')
+      const message = err instanceof Error ? err.message : 'Agent failed to find food'
+      setError(message)
       setAgentResults((prev) => {
         const next = new Map(prev)
-        next.delete(food.foodName)
+        const existing = next.get(food.foodName)
+        if (existing) {
+          next.set(food.foodName, {
+            ...existing,
+            loading: false,
+            error: message,
+          })
+        }
         return next
       })
     } finally {
@@ -777,7 +817,14 @@ function ChatLogger({
         setCurrentResult(updated)
         setAgentResults((prev) => {
           const next = new Map(prev)
-          next.delete(foodName)
+          const existing = next.get(foodName)
+          if (existing) {
+            next.set(foodName, {
+              ...existing,
+              loading: false,
+              error: undefined,
+            })
+          }
           return next
         })
         appendMessage({
@@ -885,7 +932,7 @@ function ChatLogger({
 
         {currentResult && (
           <div className="bg-white border border-green-200 rounded-2xl p-4 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="font-semibold text-gray-800">
                   {currentResult.rawInput}
@@ -894,10 +941,24 @@ function ChatLogger({
                   Parsed {currentResult.nutrition.foods.length} item
                   {currentResult.nutrition.foods.length === 1 ? '' : 's'}
                 </p>
+                {currentResult.debug?.generatedAt && (
+                  <p className="text-[11px] text-gray-400">
+                    Debug snapshot: {new Date(currentResult.debug.generatedAt).toLocaleString()}
+                  </p>
+                )}
               </div>
-              <span className="text-sm font-semibold text-green-600">
-                {Math.round(currentResult.nutrition.totals.calories)} kcal
-              </span>
+              <div className="flex flex-col items-end gap-2">
+                <span className="text-sm font-semibold text-green-600">
+                  {Math.round(currentResult.nutrition.totals.calories)} kcal
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowDebug((prev) => !prev)}
+                  className="text-[11px] font-semibold text-green-700 hover:text-green-900 underline"
+                >
+                  {showDebug ? 'Hide Trace' : 'Show Trace'}
+                </button>
+              </div>
             </div>
 
             {hasUnmatched && (
@@ -1144,6 +1205,15 @@ function ChatLogger({
                 ? 'Saving...'
                 : 'Save meal to day'}
             </button>
+            {showDebug && (
+              <DebugTracePanel
+                rawInput={currentResult.rawInput}
+                parsedFoods={currentResult.parsedFoods}
+                nutritionFoods={currentResult.nutrition.foods}
+                debugMeta={currentResult.debug}
+                agentEntries={agentResults}
+              />
+            )}
           </div>
         )}
 
@@ -1182,6 +1252,163 @@ function ChatLogger({
             <Send size={18} />
           </button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function DebugTracePanel({
+  rawInput,
+  parsedFoods,
+  nutritionFoods,
+  debugMeta,
+  agentEntries,
+}: {
+  rawInput: string
+  parsedFoods: ParsedFood[]
+  nutritionFoods: NutritionFood[]
+  debugMeta?: { generatedAt: string; totalFoods: number }
+  agentEntries: Map<string, AgentMatchState>
+}) {
+  const agentList = Array.from(agentEntries.entries())
+  const formatJson = (value: unknown) =>
+    JSON.stringify(value, null, 2) ?? 'undefined'
+
+  return (
+    <div className="mt-4 space-y-4 rounded-xl border border-gray-200 bg-gray-900 text-gray-100 p-4">
+      <div>
+        <h4 className="text-sm font-semibold text-white">Request Overview</h4>
+        <p className="text-xs text-gray-300 mt-1">{rawInput}</p>
+        <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-gray-400">
+          <span className="px-2 py-1 rounded-full bg-gray-800/60">
+            Parsed foods: {parsedFoods.length}
+          </span>
+          {debugMeta?.generatedAt && (
+            <span className="px-2 py-1 rounded-full bg-gray-800/60">
+              Generated {new Date(debugMeta.generatedAt).toLocaleTimeString()}
+            </span>
+          )}
+        </div>
+        {parsedFoods.length > 0 && (
+          <div className="mt-2 text-[11px] text-gray-300 flex flex-wrap gap-2">
+            {parsedFoods.map((food, idx) => (
+              <span key={`${food.foodName}-${idx}`} className="px-2 py-1 rounded bg-gray-800/80">
+                {food.foodName} ({food.quantity} {food.unit})
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-3">
+        <h4 className="text-sm font-semibold text-white">Fuzzy Matching Trace</h4>
+        {nutritionFoods.map((food, idx) => (
+          <div key={`${food.foodName}-${idx}`} className="rounded-lg border border-gray-700 bg-gray-800/60 p-3 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <div>
+                <p className="font-semibold text-white">{food.foodName}</p>
+                <p className="text-gray-400">
+                  Matched: {food.matched ? 'Yes' : 'No'} • Confidence: {food.confidence ?? 0}%
+                </p>
+                {food.suggestedName && (
+                  <p className="text-gray-400">Suggested match: {food.suggestedName}</p>
+                )}
+              </div>
+              <div className="text-right text-gray-400 text-[11px]">
+                <p>
+                  {food.quantity} {food.unit}
+                </p>
+                <p>
+                  {Math.round(food.calories)} kcal • {Math.round(food.protein)}P / {Math.round(food.carbs)}C / {Math.round(food.fat)}F
+                </p>
+              </div>
+            </div>
+            {food.trace && food.trace.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-[11px] text-left">
+                  <thead className="text-gray-400 uppercase">
+                    <tr>
+                      <th className="py-1 pr-4">Level</th>
+                      <th className="py-1 pr-4">Candidate</th>
+                      <th className="py-1 pr-4">Detail</th>
+                      <th className="py-1 pr-4">Confidence</th>
+                      <th className="py-1">Matched</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {food.trace.map((attempt, attemptIdx) => (
+                      <tr key={`${attempt.level}-${attemptIdx}`} className="border-t border-gray-700">
+                        <td className="py-1 pr-4 text-gray-200 capitalize">{attempt.level}</td>
+                        <td className="py-1 pr-4 text-gray-300">{attempt.candidateName}</td>
+                        <td className="py-1 pr-4 text-gray-400">{attempt.detail}</td>
+                        <td className="py-1 pr-4 text-gray-200">{attempt.confidence}%</td>
+                        <td className="py-1 text-gray-200">{attempt.matched ? 'Yes' : 'No'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-[11px] text-gray-400">No trace data available for this item.</p>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="space-y-3">
+        <h4 className="text-sm font-semibold text-white">Agent Activity</h4>
+        {agentList.length === 0 ? (
+          <p className="text-[11px] text-gray-400">Agent has not been invoked for this entry.</p>
+        ) : (
+          agentList.map(([foodName, state]) => (
+            <div key={foodName} className="rounded-lg border border-gray-700 bg-gray-800/60 p-3 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <p className="font-semibold text-white">{foodName}</p>
+                <p className="text-gray-400">
+                  Confidence: {state.validation?.confidence ?? 'n/a'} • Status:{' '}
+                  {state.loading ? 'Loading' : state.error ? 'Error' : 'Complete'}
+                </p>
+              </div>
+              {state.error && (
+                <p className="text-[11px] text-red-400">{state.error}</p>
+              )}
+              {state.foodData && (
+                <details className="text-[11px]">
+                  <summary className="cursor-pointer text-gray-200">Resolved nutrition data</summary>
+                  <pre className="mt-2 rounded bg-gray-900/80 p-2 text-gray-300 overflow-x-auto">
+                    {formatJson(state.foodData)}
+                  </pre>
+                </details>
+              )}
+              {state.debug && (
+                <div className="space-y-2 text-[11px]">
+                  <details>
+                    <summary className="cursor-pointer text-gray-200">Nutrition prompt & response</summary>
+                    <div className="mt-2 space-y-2">
+                      <pre className="rounded bg-gray-900/80 p-2 text-gray-300 whitespace-pre-wrap overflow-x-auto">
+                        {state.debug.nutrition.prompt}
+                      </pre>
+                      <pre className="rounded bg-gray-900/80 p-2 text-gray-300 whitespace-pre-wrap overflow-x-auto">
+                        {formatJson(state.debug.nutrition.rawResponse)}
+                      </pre>
+                    </div>
+                  </details>
+                  <details>
+                    <summary className="cursor-pointer text-gray-200">Validation prompt & response</summary>
+                    <div className="mt-2 space-y-2">
+                      <pre className="rounded bg-gray-900/80 p-2 text-gray-300 whitespace-pre-wrap overflow-x-auto">
+                        {state.debug.validation.prompt}
+                      </pre>
+                      <pre className="rounded bg-gray-900/80 p-2 text-gray-300 whitespace-pre-wrap overflow-x-auto">
+                        {formatJson(state.debug.validation.rawResponse)}
+                      </pre>
+                    </div>
+                  </details>
+                </div>
+              )}
+            </div>
+          ))
+        )}
       </div>
     </div>
   )

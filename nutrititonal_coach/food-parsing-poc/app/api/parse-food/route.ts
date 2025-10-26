@@ -30,6 +30,10 @@ export async function POST(request: Request) {
         rawInput: input,
         parsedFoods,
         nutrition,
+        debug: {
+          generatedAt: new Date().toISOString(),
+          totalFoods: parsedFoods.length,
+        },
       },
     })
   } catch (error) {

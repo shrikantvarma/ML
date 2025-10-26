@@ -75,7 +75,13 @@ export async function findFoodNutrition(
   foodName: string,
   quantity?: number,
   unit?: string
-): Promise<FoodNutritionData> {
+): Promise<{
+  data: FoodNutritionData
+  debug: {
+    prompt: string
+    rawResponse: unknown
+  }
+}> {
   const systemPrompt = `You are a nutrition data agent. Your job is to find accurate nutrition information for foods that users ask about.
 
 When given a food name:
@@ -108,13 +114,17 @@ Return nutrition data in JSON format with all required fields using this exact t
 Always include every key even if you must make a reasonable estimate; when unknown, use null for brand and "openai_estimate" for source.`
 
   try {
+    const userPrompt = `Find nutrition data for: "${foodName}"${
+      quantity && unit ? ` (user asked for ${quantity} ${unit})` : ''
+    }`
+
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
         {
           role: 'user',
-          content: `Find nutrition data for: "${foodName}"${quantity && unit ? ` (user asked for ${quantity} ${unit})` : ''}`,
+          content: userPrompt,
         },
       ],
       response_format: { type: 'json_object' },
@@ -148,7 +158,13 @@ Always include every key even if you must make a reasonable estimate; when unkno
       reasoning: normalizeText(raw.reasoning) ?? undefined,
     }
 
-    return normalized
+    return {
+      data: normalized,
+      debug: {
+        prompt: userPrompt,
+        rawResponse: parsed,
+      },
+    }
   } catch (error) {
     console.error('Error finding food nutrition:', error)
     throw new Error(
@@ -165,10 +181,16 @@ export async function validateWithWebSearch(
   foodName: string,
   estimatedData: FoodNutritionData
 ): Promise<{
-  validated: boolean
-  confidence: 'high' | 'medium' | 'low'
-  sources: string[]
-  notes?: string
+  result: {
+    validated: boolean
+    confidence: 'high' | 'medium' | 'low'
+    sources: string[]
+    notes?: string
+  }
+  debug: {
+    prompt: string
+    rawResponse: unknown
+  }
 }> {
   // For now, we'll use OpenAI to simulate web search validation
   // In production, you'd integrate with a real web search API (SerpAPI, Google Custom Search, etc.)
@@ -207,26 +229,44 @@ Return JSON with: validated (boolean), confidence (high/medium/low), sources (ar
     const responseContent = completion.choices[0]?.message?.content
     if (!responseContent) {
       return {
-        validated: true,
-        confidence: estimatedData.confidence,
-        sources: ['OpenAI estimation'],
+        result: {
+          validated: true,
+          confidence: estimatedData.confidence,
+          sources: ['OpenAI estimation'],
+        },
+        debug: {
+          prompt: validationPrompt,
+          rawResponse: null,
+        },
       }
     }
 
     const result = JSON.parse(responseContent)
     return {
-      validated: result.validated !== false,
-      confidence: result.confidence || estimatedData.confidence,
-      sources: result.sources || ['OpenAI estimation'],
-      notes: result.notes,
+      result: {
+        validated: result.validated !== false,
+        confidence: result.confidence || estimatedData.confidence,
+        sources: result.sources || ['OpenAI estimation'],
+        notes: result.notes,
+      },
+      debug: {
+        prompt: validationPrompt,
+        rawResponse: result,
+      },
     }
   } catch (error) {
     console.error('Error validating with web search:', error)
     // If validation fails, still allow the original data through
     return {
-      validated: true,
-      confidence: estimatedData.confidence,
-      sources: ['OpenAI estimation (validation failed)'],
+      result: {
+        validated: true,
+        confidence: estimatedData.confidence,
+        sources: ['OpenAI estimation (validation failed)'],
+      },
+      debug: {
+        prompt: validationPrompt,
+        rawResponse: null,
+      },
     }
   }
 }
@@ -246,26 +286,40 @@ export async function agentFindFood(
     sources: string[]
     notes?: string
   }
+  debug: {
+    nutrition: {
+      prompt: string
+      rawResponse: unknown
+    }
+    validation: {
+      prompt: string
+      rawResponse: unknown
+    }
+  }
 }> {
   // Step 1: Use OpenAI to find nutrition data
   console.log(`🤖 Agent searching for: ${foodName}`)
-  const foodData = await findFoodNutrition(foodName, quantity, unit)
+  const nutritionResult = await findFoodNutrition(foodName, quantity, unit)
 
   // Step 2: Validate with web search
   console.log(`🔍 Validating nutrition data...`)
-  const validation = await validateWithWebSearch(foodName, foodData)
+  const validationResult = await validateWithWebSearch(foodName, nutritionResult.data)
 
   // Update confidence based on validation
-  if (validation.confidence !== foodData.confidence) {
-    foodData.confidence = validation.confidence
+  if (validationResult.result.confidence !== nutritionResult.data.confidence) {
+    nutritionResult.data.confidence = validationResult.result.confidence
   }
 
   console.log(
-    `✅ Found ${foodName}: ${foodData.calories} kcal (confidence: ${foodData.confidence})`
+    `✅ Found ${foodName}: ${nutritionResult.data.calories} kcal (confidence: ${nutritionResult.data.confidence})`
   )
 
   return {
-    foodData,
-    validation,
+    foodData: nutritionResult.data,
+    validation: validationResult.result,
+    debug: {
+      nutrition: nutritionResult.debug,
+      validation: validationResult.debug,
+    },
   }
 }

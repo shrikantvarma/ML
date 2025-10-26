@@ -3,6 +3,14 @@ import { prisma } from './prisma'
 import type { ParsedFoodItem } from './openai'
 import * as levenshtein from 'fast-levenshtein'
 
+export interface MatchAttempt {
+  level: 'exact' | 'normalized' | 'levenshtein' | 'substring' | 'brand'
+  candidateName: string
+  detail: string
+  confidence: number
+  matched: boolean
+}
+
 export interface NutritionData {
   foodId: string | null
   foodName: string
@@ -16,6 +24,7 @@ export interface NutritionData {
   matched: boolean // Whether we found a match in the database
   confidence?: number // 0-100, confidence in the match
   suggestedName?: string // If fuzzy matched, what we actually matched to
+  trace?: MatchAttempt[]
 }
 
 export interface MealNutrition {
@@ -45,6 +54,7 @@ interface FoodMatch {
   food: Food
   confidence: number
   matchType: 'exact' | 'normalized' | 'levenshtein' | 'substring'
+  trace: MatchAttempt[]
 }
 
 /**
@@ -62,19 +72,36 @@ async function findFoodInDatabase(foodName: string): Promise<FoodMatch | null> {
   const foods = await prisma.food.findMany()
 
   let bestMatch: FoodMatch | null = null
+  let trace: MatchAttempt[] = []
 
   for (const food of foods) {
     const dbNameNormalized = normalizeFoodName(food.name)
 
     // Level 1: Exact match
     if (food.name.toLowerCase() === foodName.toLowerCase()) {
-      return { food, confidence: 100, matchType: 'exact' }
+      const attempt: MatchAttempt = {
+        level: 'exact',
+        candidateName: food.name,
+        detail: 'Exact string match',
+        confidence: 100,
+        matched: true,
+      }
+      return { food, confidence: 100, matchType: 'exact', trace: [attempt] }
     }
 
     // Level 2: Normalized match
     if (dbNameNormalized === searchNormalized) {
       if (!bestMatch || bestMatch.confidence < 90) {
-        bestMatch = { food, confidence: 90, matchType: 'normalized' }
+        trace = [
+          {
+            level: 'normalized',
+            candidateName: food.name,
+            detail: `Normalized "${foodName}" to "${searchNormalized}" and matched "${dbNameNormalized}"`,
+            confidence: 90,
+            matched: true,
+          },
+        ]
+        bestMatch = { food, confidence: 90, matchType: 'normalized', trace }
       }
       continue
     }
@@ -88,7 +115,16 @@ async function findFoodInDatabase(foodName: string): Promise<FoodMatch | null> {
       // Allow up to 2 character edits and ensure it's not too different proportionally
       const confidence = Math.floor(70 + similarity * 15) // 70-85% confidence
       if (!bestMatch || bestMatch.confidence < confidence) {
-        bestMatch = { food, confidence, matchType: 'levenshtein' }
+        trace = [
+          {
+            level: 'levenshtein',
+            candidateName: food.name,
+            detail: `Levenshtein distance ${distance} with similarity ${similarity.toFixed(2)}`,
+            confidence,
+            matched: true,
+          },
+        ]
+        bestMatch = { food, confidence, matchType: 'levenshtein', trace }
       }
       continue
     }
@@ -100,7 +136,16 @@ async function findFoodInDatabase(foodName: string): Promise<FoodMatch | null> {
     ) {
       const confidence = Math.floor(50 + (searchNormalized.length / maxLength) * 20) // 50-70%
       if (!bestMatch || bestMatch.confidence < confidence) {
-        bestMatch = { food, confidence, matchType: 'substring' }
+        trace = [
+          {
+            level: 'substring',
+            candidateName: food.name,
+            detail: `Substring overlap between "${searchNormalized}" and "${dbNameNormalized}"`,
+            confidence,
+            matched: true,
+          },
+        ]
+        bestMatch = { food, confidence, matchType: 'substring', trace }
       }
     }
 
@@ -108,7 +153,16 @@ async function findFoodInDatabase(foodName: string): Promise<FoodMatch | null> {
     if (food.brand && searchNormalized.includes(normalizeFoodName(food.brand))) {
       const confidence = 75
       if (!bestMatch || bestMatch.confidence < confidence) {
-        bestMatch = { food, confidence, matchType: 'substring' }
+        trace = [
+          {
+            level: 'brand',
+            candidateName: food.name,
+            detail: `Brand match on "${food.brand}"`,
+            confidence,
+            matched: true,
+          },
+        ]
+        bestMatch = { food, confidence, matchType: 'substring', trace }
       }
     }
   }
@@ -184,6 +238,15 @@ export async function calculateNutrition(item: ParsedFoodItem): Promise<Nutritio
       fiber: 0,
       matched: false,
       confidence: 0,
+      trace: [
+        {
+          level: 'substring',
+          candidateName: 'none',
+          detail: `No match found for "${item.foodName}"`,
+          confidence: 0,
+          matched: false,
+        },
+      ],
     }
   }
 
@@ -213,6 +276,7 @@ export async function calculateNutrition(item: ParsedFoodItem): Promise<Nutritio
     fiber: parseFloat((food.fiber * servingSizeMultiplier).toFixed(1)),
     matched: true,
     confidence,
+    trace: matchResult.trace,
   }
 
   // If fuzzy matched (not exact), include what we actually matched to

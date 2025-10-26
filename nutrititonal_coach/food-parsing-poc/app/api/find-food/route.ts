@@ -19,6 +19,7 @@ export async function POST(request: Request) {
       data: {
         foodData: result.foodData,
         validation: result.validation,
+        debug: result.debug,
         message: `Found nutrition data for "${foodName}" with ${result.validation.confidence} confidence`,
       },
     })

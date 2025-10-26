@@ -32,6 +32,10 @@ interface ParseFoodResponse {
   rawInput: string
   parsedFoods: ParsedFoodItem[]
   nutrition: MealNutrition
+  debug?: {
+    generatedAt: string
+    totalFoods: number
+  }
 }
 
 interface AgentValidation {
@@ -44,6 +48,16 @@ interface AgentValidation {
 interface AgentResponse {
   foodData: FoodNutritionData
   validation: AgentValidation
+  debug: {
+    nutrition: {
+      prompt: string
+      rawResponse: unknown
+    }
+    validation: {
+      prompt: string
+      rawResponse: unknown
+    }
+  }
 }
 
 interface DailySummaryTotals {
@@ -198,6 +212,9 @@ async function main() {
       firstParse.nutrition.foods.filter((f: NutritionData) => f.matched).length
     }`
   )
+  if (firstParse.debug) {
+    console.log('Trace generated at:', firstParse.debug.generatedAt)
+  }
   console.log(`🤖 Invoking agent for "${targetFood.foodName}"...`)
   const agentResult = await callPostJson<AgentResponse>(findFoodPost, 'http://localhost/api/find-food', {
     foodName: targetFood.foodName,
@@ -208,6 +225,8 @@ async function main() {
   console.log(
     `Agent found: ${agentResult.foodData.name} (${agentResult.validation.confidence} confidence)`
   )
+  console.log('Agent nutrition prompt:', agentResult.debug.nutrition.prompt)
+  console.log('Agent validation prompt:', agentResult.debug.validation.prompt)
 
   console.log('📦 Adding agent-discovered food to database...')
   await callPutJson<Food>(findFoodPut, 'http://localhost/api/find-food', {
@@ -244,7 +263,11 @@ async function main() {
   console.log('✅ Agent-assisted flow completed successfully.')
 }
 
-main().catch((error) => {
-  console.error('❌ Flow failed', error)
-  process.exit(1)
-})
+main()
+  .catch((error) => {
+    console.error('❌ Flow failed', error)
+    process.exit(1)
+  })
+  .finally(async () => {
+    await prisma.$disconnect()
+  })
