@@ -1,0 +1,188 @@
+🧠 PRD: Conversational Nutrition Companion (v5 – with MVP Scope)
+
+🧩 1. Product Vision
+
+To build an AI-powered nutrition companion that learns your eating patterns, predicts your meals, and helps you stay balanced through an interactive, conversational experience. The app transforms complex nutrition tracking into a natural, intelligent dialogue — one that understands, predicts, and guides you toward your goals for focus, energy, and sustainable weight management.
+
+“It knows what you eat, shows it visually, lets you tweak it, and keeps you on track all day.”
+
+🎯 2. Goals and Success Metrics
+
+CategoryGoalSuccess MetricPrediction AccuracyPredict likely meals accurately≥ 80 % correct ingredient matchEase of TrackingEnable effortless logging via chat or voice90 % successful parsing accuracyPersonalizationAdapt goals based on profile & progress≥ 85 % users complete onboardingSustainabilityReduce fatigue / brain fog70 % report improved focusEngagementMaintain habit consistency≥ 5 active days/week
+
+🧍‍♂️ 3. Target User
+
+Health-focused professionals who want simple yet intelligent nutrition guidance —
+
+Vegetarian + eggs diet preference
+
+Light–moderate activity
+
+1 400–1 700 kcal/day goal
+
+Focused on sustainable weight management, clarity, and efficiency
+
+⚙️ 4. Core Functional Requirements
+
+A. Profile Setup
+
+Conversational onboarding asks:
+
+Height, weight, age, gender
+
+Activity level (definitions included)
+
+Goal (maintain / moderate loss / aggressive loss)
+
+Diet preference (veg / veg + eggs / non-veg)
+
+Meal pattern (3–4/day)
+
+Computes personalized macro goals (e.g., 1 700 kcal → 150P / 120C / 60F / 30 Fiber)
+
+B. Conversational Food Logging
+
+Users enter meals by natural text or voice:
+
+“Lunch: 1 cup Greek yogurt, 1 tsp chia, salad without dressing.”
+
+Recognizes portions, ingredients, brands.
+
+Calculates calories, macros, key micros.
+
+Supports quick edits (“replace oats with quinoa”).
+
+C. Real-Time Nutrient Tracking
+
+Dynamic display:
+
+Calories, Protein, Carbs, Fat, Fiber
+
+Remaining needs (“+22g protein, +30g carbs left”)
+
+Color-coded progress bars (🟢 balanced / 🟠 under / 🔴 over).
+
+Adaptive prompts:
+
+“You’ve hit 85 % fat; keep dinner light on oil.”
+
+“Add leafy greens for iron + magnesium.”
+
+D. End-of-Day Food Fix
+
+At “I’m done for the day,” app analyzes remaining nutrients.
+
+Suggests tailored foods to balance the day (e.g., “½ Barebells bar + Greek yogurt + chia”).
+
+Instant “Add to plan” recalculates totals.
+
+E. Proactive Intelligence
+
+Tracks weekly trends; suggests cheat days and nutrient rotation.
+
+Late-night mode → recommends sleep-safe snacks (<150 kcal).
+
+“Fog alert” when carbs too low or hydration off.
+
+F. Phytonutrient & Micronutrient Diversity
+
+Monitors plant color diversity (greens, oranges, purples, etc.).
+
+Suggests missing color groups for antioxidant balance.
+
+G. Predictive and Visual Enhancements (Phase 2+)
+
+(Future capabilities for roadmap — not MVP)
+
+Predictive meals: suggests likely foods based on history/time.
+
+Visual meal builder: displays editable ingredient tiles.
+
+What-if simulation: shows nutrient changes when swapping foods.
+
+🧮 5. Calculation Logic
+
+Uses verified food databases (USDA + Indian FSSAI + brand APIs).
+
+Dynamic recalculation on add/remove.
+
+Handles household units (cup, tsp, slice).
+
+Adjusts macros automatically for selected goal type.
+
+📊 6. MVP Scope (0–3 Months)
+
+The Minimum Viable Product delivers complete daily tracking, nutrient intelligence, and end-of-day guidance.
+
+CategoryFeatureDescriptionCore InteractionConversational Food LoggingText/voice input, AI parsing of foods, real-time confirmation.PersonalizationProfile SetupActivity level, goal, diet type; auto-calculated macros.AnalyticsNutrient TrackerLive calories and macros summary with remaining balance.GuidanceEnd-of-Day Food FixEnd-of-day gap analysis + closing meal suggestions.EngagementCheat & Snack PromptsLight AI guidance on snacks and weekly cheat frequency.ReportingDaily/Weekly SummaryTrends on calories, macros, fiber, and adherence score.
+
+✅ MVP Deliverables
+
+100 % working conversational loop
+
+Day-level macro tracking + feedback
+
+Onboarding with goal computation
+
+End-of-day nutrient balancing
+
+Simple UI for chat + daily summary view
+
+🚀 MVP Success Criteria
+
+≥ 70 % of users log 5+ meals per week
+
+Average deviation from macro target ≤ 10 %
+
+≥ 80 % satisfaction with daily recommendations
+
+🚀 7. Roadmap Overview
+
+PhaseDurationKey FocusDeliverablesMVP (0–3 mo)Core tracking + guidanceConversational log, nutrient tracker, end-of-day fixPhase 2 (3–6 mo)Predictive + Visual loggingPredictive meal suggestions, visual meal composerPhase 3 (6–9 mo)Intelligence & FocusPhytonutrient tracking, cheat planning, fog insightsPhase 4 (9–12 mo)Ecosystem integrationPantry-based planning, “what-if” simulator, HealthKit sync
+
+🧠 8. Example User Experience Flow
+
+Morning:
+
+“Breakfast: 1 egg, 3 whites, 1 chai.” ✅ System logs → 210 kcal, 23 g protein, 17 g carbs.
+
+Afternoon:
+
+“Lunch: 1 cup Greek yogurt, salad, 1 tbsp chia.” App replies: “Lunch logged. You have 950 kcal, 85 g protein left for the day.”
+
+Evening: User says “Done for the day.” App:
+
+“You’re short 14 g protein and 5 g fiber. Add ½ Barebells bar + yogurt for balance.” Click → Totals updated → summary chart shown.
+
+🔔 9. Notifications / Prompts
+
+TimeContextExample8 a.m.Missed breakfast“Add your usual eggs and chai?”3 p.m.Fatigue detected“Try a protein snack for steady focus.”9 p.m.Late hunger“½ cup Greek yogurt + chia = perfect closeout.”SundayWeekly recap“Avg: 1 540 kcal/day, 142 g protein. Excellent consistency.”
+
+📈 10. Future Enhancements
+
+Predictive AI (meal memory + time-based suggestion)
+
+Visual ingredient composer
+
+Pantry-aware end-of-day planning
+
+Focus-energy analytics dashboard
+
+Smart nutrition simulation (“if I eat this…”)
+
+✅ 11. Summary
+
+This version of the PRD establishes a clear MVP foundation:
+
+Conversational logging
+
+Personalized daily macro tracking
+
+Real-time nutrient guidance
+
+End-of-day balancing suggestions
+
+and evolves toward a predictive, visual, and context-aware nutrition coach in later phases.
+
+The MVP focuses on core daily value — “Log easily, know what’s missing, fix it fast” — while later phases build intelligence, automation, and personalization for sustainable health and focus.
+

@@ -1,0 +1,111 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Food Database - stores nutrition info for individual foods
+model Food {
+  id              String      @id @default(uuid())
+  name            String
+  brand           String?
+  category        String?
+
+  // Nutrition per 100g or standard serving
+  servingSize     Float       // e.g., 100, 1, 250
+  servingUnit     String      // g, piece, cup, tbsp
+
+  calories        Float
+  protein         Float
+  carbs           Float
+  fat             Float
+  fiber           Float       @default(0)
+
+  source          String      // usda, manual, api
+  createdAt       DateTime    @default(now())
+
+  entries         FoodEntry[]
+
+  @@index([name])
+}
+
+// User - core account holder (single user in POC but supports multi-user)
+model User {
+  id        String   @id @default(uuid())
+  name      String?
+  email     String?  @unique
+  createdAt DateTime @default(now())
+  profile   Profile?
+  meals     Meal[]
+}
+
+// Profile - onboarding details + calculated targets
+model Profile {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  heightCm       Int
+  weightKg       Float
+  age            Int
+  gender         String
+  activityLevel  String
+  goal           String
+  dietPreference String
+  mealPattern    String?
+  dailyCalories  Float
+  dailyProtein   Float
+  dailyCarbs     Float
+  dailyFat       Float
+  dailyFiber     Float
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// Meal - represents a logged meal (breakfast, lunch, snack, etc.)
+model Meal {
+  id              String      @id @default(uuid())
+  timestamp       DateTime    @default(now())
+  mealType        String?     // breakfast, lunch, dinner, snack
+  rawInput        String      // Original user input: "2 eggs, 1 chai"
+  userId          String
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Calculated totals for the meal
+  totalCalories   Float
+  totalProtein    Float
+  totalCarbs      Float
+  totalFat        Float
+  totalFiber      Float
+
+  foods           FoodEntry[]
+}
+
+// FoodEntry - individual food items within a meal
+model FoodEntry {
+  id              String   @id @default(uuid())
+  mealId          String
+  meal            Meal     @relation(fields: [mealId], references: [id], onDelete: Cascade)
+
+  foodId          String?
+  food            Food?    @relation(fields: [foodId], references: [id])
+
+  foodName        String   // Name of the food
+  quantity        Float    // Amount consumed
+  unit            String   // cup, piece, g, tbsp
+
+  // Calculated nutrition for this entry
+  calories        Float
+  protein         Float
+  carbs           Float
+  fat             Float
+  fiber           Float
+}
