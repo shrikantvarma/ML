@@ -5,24 +5,67 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
 
-// Schema for food nutrition data
-const FoodNutritionSchema = z.object({
-  name: z.string(),
-  brand: z.string().nullable(),
-  category: z.string(),
-  servingSize: z.number(),
-  servingUnit: z.string(),
-  calories: z.number(),
-  protein: z.number(),
-  carbs: z.number(),
-  fat: z.number(),
-  fiber: z.number(),
-  source: z.string(),
-  confidence: z.enum(['high', 'medium', 'low']),
+export interface FoodNutritionData {
+  name: string
+  brand: string | null
+  category: string
+  servingSize: number
+  servingUnit: string
+  calories: number
+  protein: number
+  carbs: number
+  fat: number
+  fiber: number
+  source: string
+  confidence: 'high' | 'medium' | 'low'
+  reasoning?: string
+}
+
+const RawFoodNutritionSchema = z.object({
+  name: z.string().trim().min(1).optional(),
+  brand: z.union([z.string().trim().min(1), z.null()]).optional(),
+  category: z.string().trim().min(1).optional(),
+  servingSize: z.union([z.number(), z.string().trim()]).optional(),
+  servingUnit: z.string().trim().min(1).optional(),
+  calories: z.union([z.number(), z.string().trim()]).optional(),
+  protein: z.union([z.number(), z.string().trim()]).optional(),
+  carbs: z.union([z.number(), z.string().trim()]).optional(),
+  fat: z.union([z.number(), z.string().trim()]).optional(),
+  fiber: z.union([z.number(), z.string().trim()]).optional(),
+  source: z.string().trim().min(1).optional(),
+  confidence: z.string().trim().toLowerCase().optional(),
   reasoning: z.string().optional(),
 })
 
-export type FoodNutritionData = z.infer<typeof FoodNutritionSchema>
+function coerceNumber(value: unknown, fallback = 0): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+  if (typeof value === 'string') {
+    const numeric = parseFloat(value.replace(/[^\d.-]/g, ''))
+    if (!Number.isNaN(numeric) && Number.isFinite(numeric)) {
+      return numeric
+    }
+  }
+  return fallback
+}
+
+function normalizeConfidence(value?: string): 'high' | 'medium' | 'low' {
+  if (!value) return 'medium'
+  const normalized = value.toLowerCase()
+  if (normalized === 'high' || normalized === 'medium' || normalized === 'low') {
+    return normalized
+  }
+  if (normalized.includes('high')) return 'high'
+  if (normalized.includes('low')) return 'low'
+  return 'medium'
+}
+
+function normalizeText(value: string | null | undefined): string | null {
+  if (!value) return null
+  const trimmed = value.trim()
+  return trimmed.length === 0 ? null : trimmed
+}
 
 /**
  * Agent: Find nutrition data for unknown foods
@@ -45,7 +88,24 @@ When given a food name:
    - MEDIUM: You can make a good estimate based on ingredients
    - LOW: You're making a rough guess
 
-Return nutrition data in JSON format with all required fields.`
+Return nutrition data in JSON format with all required fields using this exact template:
+{
+  "name": "<string>",
+  "brand": "<string or null>",
+  "category": "<string>",
+  "servingSize": <number>,
+  "servingUnit": "<string>",
+  "calories": <number>,
+  "protein": <number>,
+  "carbs": <number>,
+  "fat": <number>,
+  "fiber": <number>,
+  "source": "<string describing where you got the data>",
+  "confidence": "<high|medium|low>",
+  "reasoning": "<string explanation>"
+}
+
+Always include every key even if you must make a reasonable estimate; when unknown, use null for brand and "openai_estimate" for source.`
 
   try {
     const completion = await openai.chat.completions.create({
@@ -68,9 +128,27 @@ Return nutrition data in JSON format with all required fields.`
     }
 
     const parsed = JSON.parse(responseContent)
-    const validated = FoodNutritionSchema.parse(parsed)
+    const raw = RawFoodNutritionSchema.parse(parsed)
 
-    return validated
+    const normalizedName = normalizeText(raw.name) ?? foodName
+
+    const normalized: FoodNutritionData = {
+      name: normalizedName,
+      brand: normalizeText(raw.brand ?? null),
+      category: normalizeText(raw.category) ?? 'general',
+      servingSize: Math.max(coerceNumber(raw.servingSize, quantity ?? 1), 0.0001),
+      servingUnit: normalizeText(raw.servingUnit) ?? unit ?? 'serving',
+      calories: Math.max(coerceNumber(raw.calories), 0),
+      protein: Math.max(coerceNumber(raw.protein), 0),
+      carbs: Math.max(coerceNumber(raw.carbs), 0),
+      fat: Math.max(coerceNumber(raw.fat), 0),
+      fiber: Math.max(coerceNumber(raw.fiber), 0),
+      source: normalizeText(raw.source) ?? 'openai_estimate',
+      confidence: normalizeConfidence(raw.confidence),
+      reasoning: normalizeText(raw.reasoning) ?? undefined,
+    }
+
+    return normalized
   } catch (error) {
     console.error('Error finding food nutrition:', error)
     throw new Error(
