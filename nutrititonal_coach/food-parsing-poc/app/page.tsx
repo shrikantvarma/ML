@@ -881,7 +881,11 @@ function ChatLogger({
           </div>
         ))}
 
-        {currentResult && (
+        {currentResult && (() => {
+          const unmatchedFoods = currentResult.nutrition.foods.filter((food) => !food.matched)
+          const hasUnmatched = unmatchedFoods.length > 0
+
+          return (
           <div className="bg-white border border-green-200 rounded-2xl p-4 shadow-sm space-y-4">
             <div className="flex items-center justify-between">
               <div>
@@ -1143,6 +1147,8 @@ function ChatLogger({
                 : 'Save meal to day'}
             </button>
           </div>
+          )
+        })()}
         )}
 
         {error && (
