@@ -152,9 +152,6 @@ function NutrientBar({
   const colorClass = getProgressColor(percentage)
   const remaining = Math.round(target - current)
 
-  const unmatchedFoods = currentResult?.nutrition.foods.filter((food) => !food.matched) ?? []
-  const hasUnmatched = unmatchedFoods.length > 0
-
   return (
     <div className="mb-4">
       <div className="flex justify-between items-center mb-1">
