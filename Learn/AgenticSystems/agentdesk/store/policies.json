@@ -1,0 +1,11 @@
+{
+    "auto_refund_limit": 50.00,
+    "return_window_days": 30,
+    "vip_refund_limit": 200.00,
+    "premium_refund_limit": 100.00,
+    "requires_human_review_above": 100.00,
+    "free_replacement_eligible_tiers": ["premium", "vip"],
+    "max_replacements_per_order": 1,
+    "escalation_required_categories": ["complaint"],
+    "auto_resolve_categories": ["product_question"]
+}

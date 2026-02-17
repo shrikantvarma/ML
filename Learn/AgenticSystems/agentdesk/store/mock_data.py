@@ -1,0 +1,142 @@
+CUSTOMERS = [
+    {
+        "customer_id": "C001",
+        "name": "Alice Johnson",
+        "email": "alice@example.com",
+        "tier": "premium",
+        "account_age_days": 730,
+    },
+    {
+        "customer_id": "C002",
+        "name": "Bob Smith",
+        "email": "bob@example.com",
+        "tier": "standard",
+        "account_age_days": 90,
+    },
+    {
+        "customer_id": "C003",
+        "name": "Carol Williams",
+        "email": "carol@example.com",
+        "tier": "vip",
+        "account_age_days": 1460,
+    },
+    {
+        "customer_id": "C004",
+        "name": "Dave Brown",
+        "email": "dave@example.com",
+        "tier": "standard",
+        "account_age_days": 30,
+    },
+]
+
+PRODUCTS = [
+    {
+        "product_id": "P001",
+        "name": "Wireless Headphones",
+        "category": "Electronics",
+        "price": 79.99,
+        "in_stock": True,
+        "return_eligible": True,
+    },
+    {
+        "product_id": "P002",
+        "name": "Running Shoes",
+        "category": "Footwear",
+        "price": 129.99,
+        "in_stock": True,
+        "return_eligible": True,
+    },
+    {
+        "product_id": "P003",
+        "name": "Coffee Maker",
+        "category": "Kitchen",
+        "price": 49.99,
+        "in_stock": False,
+        "return_eligible": True,
+    },
+    {
+        "product_id": "P004",
+        "name": "Custom Engraved Watch",
+        "category": "Jewelry",
+        "price": 299.99,
+        "in_stock": True,
+        "return_eligible": False,
+    },
+    {
+        "product_id": "P005",
+        "name": "Phone Case",
+        "category": "Accessories",
+        "price": 19.99,
+        "in_stock": True,
+        "return_eligible": True,
+    },
+]
+
+ORDERS = [
+    {
+        "order_id": "ORD-001",
+        "customer_id": "C001",
+        "items": [
+            {"product_id": "P001", "name": "Wireless Headphones", "quantity": 1, "price": 79.99},
+        ],
+        "total": 79.99,
+        "status": "delivered",
+        "order_date": "2026-01-15",
+        "delivery_date": "2026-01-20",
+        "payment_method": "credit_card",
+        "shipping_address": "123 Main St, Springfield, IL",
+    },
+    {
+        "order_id": "ORD-002",
+        "customer_id": "C001",
+        "items": [
+            {"product_id": "P002", "name": "Running Shoes", "quantity": 1, "price": 129.99},
+        ],
+        "total": 129.99,
+        "status": "shipped",
+        "order_date": "2026-02-10",
+        "delivery_date": None,
+        "payment_method": "credit_card",
+        "shipping_address": "123 Main St, Springfield, IL",
+    },
+    {
+        "order_id": "ORD-003",
+        "customer_id": "C002",
+        "items": [
+            {"product_id": "P003", "name": "Coffee Maker", "quantity": 1, "price": 49.99},
+            {"product_id": "P005", "name": "Phone Case", "quantity": 2, "price": 19.99},
+        ],
+        "total": 89.97,
+        "status": "delivered",
+        "order_date": "2026-01-28",
+        "delivery_date": "2026-02-02",
+        "payment_method": "paypal",
+        "shipping_address": "456 Oak Ave, Portland, OR",
+    },
+    {
+        "order_id": "ORD-004",
+        "customer_id": "C003",
+        "items": [
+            {"product_id": "P004", "name": "Custom Engraved Watch", "quantity": 1, "price": 299.99},
+        ],
+        "total": 299.99,
+        "status": "delivered",
+        "order_date": "2026-01-05",
+        "delivery_date": "2026-01-12",
+        "payment_method": "credit_card",
+        "shipping_address": "789 Pine Rd, Austin, TX",
+    },
+    {
+        "order_id": "ORD-005",
+        "customer_id": "C004",
+        "items": [
+            {"product_id": "P005", "name": "Phone Case", "quantity": 1, "price": 19.99},
+        ],
+        "total": 19.99,
+        "status": "processing",
+        "order_date": "2026-02-16",
+        "delivery_date": None,
+        "payment_method": "debit_card",
+        "shipping_address": "321 Elm St, Denver, CO",
+    },
+]
