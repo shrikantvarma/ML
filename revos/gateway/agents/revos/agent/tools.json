@@ -1,0 +1,63 @@
+[
+  {
+    "name": "list_overdue_invoices",
+    "description": "Get all overdue invoices for a business",
+    "endpoint": "GET /api/v1/invoices/overdue",
+    "parameters": {
+      "business_id": { "type": "string", "required": true }
+    }
+  },
+  {
+    "name": "lookup_customer",
+    "description": "Look up a customer by ID or search by name/phone",
+    "endpoint": "GET /api/v1/customers",
+    "parameters": {
+      "business_id": { "type": "string", "required": true },
+      "search": { "type": "string", "required": false }
+    }
+  },
+  {
+    "name": "create_quote",
+    "description": "Create a new quote for a customer",
+    "endpoint": "POST /api/v1/quotes",
+    "parameters": {
+      "business_id": { "type": "string", "required": true },
+      "customer_id": { "type": "string", "required": true },
+      "description": { "type": "string", "required": true },
+      "line_items": { "type": "array", "required": true },
+      "total_amount": { "type": "number", "required": true },
+      "valid_until": { "type": "string", "required": true }
+    }
+  },
+  {
+    "name": "list_jobs",
+    "description": "List jobs filtered by status, technician, or date",
+    "endpoint": "GET /api/v1/jobs",
+    "parameters": {
+      "business_id": { "type": "string", "required": true },
+      "status": { "type": "string", "required": false },
+      "technician_id": { "type": "string", "required": false }
+    }
+  },
+  {
+    "name": "get_daily_summary",
+    "description": "Get a summary of the day's revenue activity",
+    "endpoint": "GET /api/v1/analytics/daily-summary",
+    "parameters": {
+      "business_id": { "type": "string", "required": true },
+      "date": { "type": "string", "required": false }
+    }
+  },
+  {
+    "name": "record_payment",
+    "description": "Record a payment against an invoice",
+    "endpoint": "POST /api/v1/payments",
+    "parameters": {
+      "business_id": { "type": "string", "required": true },
+      "customer_id": { "type": "string", "required": true },
+      "invoice_id": { "type": "string", "required": true },
+      "amount": { "type": "number", "required": true },
+      "method": { "type": "string", "required": true }
+    }
+  }
+]

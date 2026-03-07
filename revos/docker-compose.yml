@@ -1,0 +1,88 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-revos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-revos}
+      POSTGRES_DB: ${POSTGRES_DB:-revos}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-revos}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - revos-net
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - revos-net
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    ports:
+      - "8000:8000"
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./api/app:/app/app
+    networks:
+      - revos-net
+
+  worker:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    command: celery -A app.workers.celery_app worker --loglevel=info
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./api/app:/app/app
+    networks:
+      - revos-net
+
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    depends_on:
+      - api
+    env_file: .env
+    volumes:
+      - openclaw-data:/root/.openclaw
+      - ./gateway/config:/openclaw-config
+      - ./gateway/agents:/openclaw-agents
+    networks:
+      - revos-net
+
+volumes:
+  postgres-data:
+  redis-data:
+  openclaw-data:
+
+networks:
+  revos-net:
+    driver: bridge

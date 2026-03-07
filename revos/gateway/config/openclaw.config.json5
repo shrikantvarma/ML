@@ -1,0 +1,23 @@
+{
+  agents: {
+    list: [
+      {
+        id: "revos",
+        default: true,
+        name: "RevOS",
+        workspace: "/openclaw-agents/revos/workspace",
+        agentDir: "/openclaw-agents/revos/agent",
+      },
+    ],
+  },
+  channels: {
+    whatsapp: {
+      allowFrom: [],  // configured per business during onboarding
+    },
+    telegram: {
+      enabled: false,
+      botToken: "",
+      allowFrom: [],
+    },
+  },
+}
