@@ -1,23 +1,23 @@
 #!/bin/bash
-# Start research dev container with Claude Code
+# Start dev container for Content Research
 # Works with Docker Desktop or OrbStack
 
 set -e
 
 IMAGE="mcr.microsoft.com/devcontainers/python:3.12"
-CONTAINER_NAME="research-dev"
+CONTAINER_NAME="content-research-dev"
 
 # Stop existing container if running
 docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
 
-echo "Starting research container..."
+echo "Starting Content Research container..."
 docker run -it \
   --name "$CONTAINER_NAME" \
   --user vscode \
   -v "$(pwd):/workspace" \
   -v "$HOME/.claude:/home/vscode/.claude" \
   -v "$HOME/.claude.json:/home/vscode/.claude.json" \
-  -e PROJECT_NAME="Research" \
+  -e PROJECT_NAME="Content Research" \
   -w /workspace \
   "$IMAGE" \
   bash -c '
@@ -33,7 +33,7 @@ docker run -it \
 
     echo ""
     echo "================================================"
-    echo "  Research container ready!"
+    echo "  Content Research container ready!"
     echo "  Run: claude --dangerously-skip-permissions"
     echo "================================================"
     echo ""

@@ -1,5 +1,5 @@
 {
-  "name": "Research Container",
+  "name": "Content Research",
   "image": "mcr.microsoft.com/devcontainers/python:3.12",
   "features": {
     "ghcr.io/devcontainers/features/common-utils:2": {},
@@ -22,7 +22,7 @@
     }
   ],
   "containerEnv": {
-    "PROJECT_NAME": "Research"
+    "PROJECT_NAME": "Content Research"
   },
   "postCreateCommand": "npm install -g @anthropic-ai/claude-code && pip install --upgrade pip",
   "customizations": {
