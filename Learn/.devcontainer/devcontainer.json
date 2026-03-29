@@ -1,0 +1,36 @@
+{
+  "name": "Research Container",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {},
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "22"
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "remoteUser": "vscode",
+  "mounts": [
+    {
+      "source": "${localEnv:HOME}/.claude",
+      "target": "/home/vscode/.claude",
+      "type": "bind"
+    },
+    {
+      "source": "${localEnv:HOME}/.claude.json",
+      "target": "/home/vscode/.claude.json",
+      "type": "bind"
+    }
+  ],
+  "containerEnv": {
+    "PROJECT_NAME": "Research"
+  },
+  "postCreateCommand": "npm install -g @anthropic-ai/claude-code && pip install --upgrade pip",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance"
+      ]
+    }
+  }
+}
