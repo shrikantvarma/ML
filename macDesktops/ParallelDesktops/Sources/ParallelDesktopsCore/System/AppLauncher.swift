@@ -20,22 +20,31 @@ public enum AppLauncher {
         Set(NSWorkspace.shared.runningApplications.compactMap { $0.bundleIdentifier })
     }
 
-    /// Launches the not-running blueprint apps onto the current desktop. Running
-    /// apps are left untouched (no relaunch, no focus-yank).
+    /// Launch a not-running app; its window opens on the current desktop. Returns
+    /// false if the bundle id can't be resolved to an app.
     @discardableResult
-    public static func launchMissing(blueprint: [String], alreadyRunning: Set<String>) async -> [String] {
-        var launched: [String] = []
-        for bundleID in toLaunch(blueprint: blueprint, alreadyRunning: alreadyRunning) {
-            guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {
-                continue  // unresolvable app URL → skip with no crash (U8)
-            }
-            let config = NSWorkspace.OpenConfiguration()
-            config.activates = true
-            config.createsNewApplicationInstance = false
-            if (try? await NSWorkspace.shared.openApplication(at: url, configuration: config)) != nil {
-                launched.append(bundleID)
-            }
+    public static func launch(bundleID: String) async -> Bool {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {
+            return false
         }
-        return launched
+        let config = NSWorkspace.OpenConfiguration()
+        config.activates = true
+        config.createsNewApplicationInstance = false
+        return (try? await NSWorkspace.shared.openApplication(at: url, configuration: config)) != nil
+    }
+
+    /// Best-effort "open a new window here" for an app already running elsewhere,
+    /// via AppleScript `make new window`. Works for scriptable apps (browsers);
+    /// returns false if the app isn't scriptable or Automation permission is denied.
+    /// Caveat: macOS, not us, decides which Space the new window lands on — for some
+    /// apps it may open on the app's existing Space rather than the current one.
+    @discardableResult
+    public static func openNewWindow(bundleID: String) -> Bool {
+        guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first,
+              let name = app.localizedName else { return false }
+        var error: NSDictionary?
+        NSAppleScript(source: "tell application \"\(name)\" to make new window")?
+            .executeAndReturnError(&error)
+        return error == nil
     }
 }

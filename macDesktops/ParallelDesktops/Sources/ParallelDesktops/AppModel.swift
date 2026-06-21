@@ -12,6 +12,9 @@ final class AppModel: ObservableObject {
     @Published var status: String = ""
     @Published var accessibilityReady: Bool = Permissions.accessibilityTrusted()
     @Published var shortcutsReady: Bool = Permissions.anySwitchShortcutEnabled()
+    /// The project bound to the desktop you're currently on (nil if none) — drives
+    /// the menu-bar title and the "current" marker in the list.
+    @Published var currentProject: Project?
 
     private lazy var resumeCard = ResumeCardController()
     private lazy var recap = RecapController(onEnter: { [weak self] in self?.enter($0) })
@@ -37,7 +40,7 @@ final class AppModel: ObservableObject {
 
     init() {
         engine = RealDesktopEngine(spaces: CGSSpacesProvider())
-        projects = store.projects
+        projects = store.projects; recomputeCurrent()
         previousSpaceUUID = spaces.currentSpaceUUID()
         orderedSnapshot = spaces.orderedUserSpaceUUIDs()
         refreshCurrentContext()
@@ -98,6 +101,7 @@ final class AppModel: ObservableObject {
         let newUUID = spaces.currentSpaceUUID()
         previousSpaceUUID = newUUID
         refreshCurrentContext()
+        recomputeCurrent()
 
         // Returning to a project desktop → show its resume card (U12).
         if let newUUID, let project = store.project(forSpaceUUID: newUUID),
@@ -130,7 +134,11 @@ final class AppModel: ObservableObject {
             project.blueprint.frames[bundleID] = frame
         }
         store.update(project)
-        projects = store.projects
+        projects = store.projects; recomputeCurrent()
+    }
+
+    private func recomputeCurrent() {
+        currentProject = spaces.currentSpaceUUID().flatMap { store.project(forSpaceUUID: $0) }
     }
 
     private func recomputeDrift() {
@@ -158,7 +166,7 @@ final class AppModel: ObservableObject {
             existing.blueprint.bundleIDs = bundleIDs
             if !trimmed.isEmpty { existing.name = trimmed }   // optional rename on re-save
             store.update(existing)
-            projects = store.projects
+            projects = store.projects; recomputeCurrent()
             status = "Updated “\(existing.name)” (\(bundleIDs.count) apps)."
             return
         }
@@ -167,7 +175,7 @@ final class AppModel: ObservableObject {
         let project = Project(name: trimmed, spaceUUID: uuid, blueprint: Blueprint(bundleIDs: bundleIDs))
         do {
             try store.add(project)
-            projects = store.projects
+            projects = store.projects; recomputeCurrent()
             status = "Saved “\(trimmed)” (\(bundleIDs.count) apps)."
         } catch {
             status = "Reached the desktop limit."
@@ -178,7 +186,7 @@ final class AppModel: ObservableObject {
         let trimmed = newName.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty, var p = projects.first(where: { $0.id == project.id }) else { return }
         p.name = trimmed
-        store.update(p); projects = store.projects
+        store.update(p); projects = store.projects; recomputeCurrent()
         status = "Renamed to “\(trimmed)”."
     }
 
@@ -189,12 +197,12 @@ final class AppModel: ObservableObject {
         }
         guard var p = projects.first(where: { $0.id == project.id }) else { return }
         p.blueprint.bundleIDs = Array(Set(AppInspector.appsOnCurrentDesktop().map { $0.bundleID })).sorted()
-        store.update(p); projects = store.projects
+        store.update(p); projects = store.projects; recomputeCurrent()
         status = "Updated “\(p.name)” apps (\(p.blueprint.bundleIDs.count))."
     }
 
     func delete(_ project: Project) {
-        store.remove(id: project.id); projects = store.projects
+        store.remove(id: project.id); projects = store.projects; recomputeCurrent()
         status = "Deleted “\(project.name)”."
     }
 
@@ -206,39 +214,87 @@ final class AppModel: ObservableObject {
         }
         guard var p = projects.first(where: { $0.id == project.id }) else { return }
         p.spaceUUID = uuid; p.drifted = false
-        store.update(p); projects = store.projects
+        store.update(p); projects = store.projects; recomputeCurrent()
         recomputeDrift()
         status = "Recalibrated “\(p.name)” to this desktop."
     }
 
     // MARK: Enter (U8)
 
+    /// Clicking a project SWITCHES only — no side effects (plan U8, refined: boot
+    /// is now an explicit on-demand action, see bringUpApps). Navigation never
+    /// launches apps, so it respects apps you deliberately closed.
     func enter(_ project: Project) {
         status = "Switching to “\(project.name)”…"
         Task {
             let result = await engine.switch(toSpaceUUID: project.spaceUUID)
-            switch result {
-            case .switched:
-                // Only launch apps that aren't running anywhere — activating an app
-                // running on another desktop would yank us off this one (the bounce).
-                let running = AppLauncher.runningBundleIDs()
-                let launched = await AppLauncher.launchMissing(
-                    blueprint: project.blueprint.bundleIDs, alreadyRunning: running)
-                status = launched.isEmpty
-                    ? "Entered “\(project.name)”."
-                    : "Entered “\(project.name)” — launched \(launched.count) app(s)."
-            case .driftDetected:
-                status = "“\(project.name)”: desktop moved — Recalibrate from its menu."
-                recomputeDrift()
-            case .blocked(.secureInput):
-                status = "“\(project.name)”: blocked by Secure Input (a password field is focused)."
-            case .blocked(.shortcutDisabled):
-                status = "“\(project.name)”: enable Switch-to-Desktop shortcuts in System Settings."
-            case .verificationFailed:
-                status = "“\(project.name)”: switch not confirmed — didn't land in time."
-            case .notKeyable(let index):
-                status = "“\(project.name)”: desktop \(index) has no Ctrl+number shortcut."
+            status = describeSwitch(project, result)
+            if case .driftDetected = result { recomputeDrift() }
+        }
+    }
+
+    /// On-demand "set up this desktop": switch there if needed, then
+    ///   • launch blueprint apps that are fully closed (windows open here), and
+    ///   • for apps running on another desktop, best-effort open a NEW window here
+    ///     (browsers only; macOS decides the landing Space).
+    /// Apps already windowed here are skipped (no duplicates).
+    func bringUpApps(_ project: Project) {
+        status = "Setting up “\(project.name)”…"
+        Task {
+            if spaces.currentSpaceUUID() != project.spaceUUID {
+                let result = await engine.switch(toSpaceUUID: project.spaceUUID)
+                guard case .switched = result else {
+                    status = describeSwitch(project, result)
+                    if case .driftDetected = result { recomputeDrift() }
+                    return
+                }
+            }
+            let here = AppInspector.bundleIDsOnCurrentDesktop()
+            let running = AppLauncher.runningBundleIDs()
+            var launched = 0, brought = 0
+            var couldNot: [String] = []
+
+            for bundleID in project.blueprint.bundleIDs where !here.contains(bundleID) {
+                if !running.contains(bundleID) {
+                    if await AppLauncher.launch(bundleID: bundleID) { launched += 1 }
+                    else { couldNot.append(bundleID) }
+                } else if Self.browserBundleIDs.contains(bundleID) {
+                    if AppLauncher.openNewWindow(bundleID: bundleID) { brought += 1 }
+                    else { couldNot.append(bundleID) }
+                } else {
+                    couldNot.append(bundleID)  // running elsewhere, can't relocate a window
+                }
+            }
+
+            var parts: [String] = []
+            if launched > 0 { parts.append("launched \(launched)") }
+            if brought > 0 { parts.append("opened \(brought) here") }
+            if parts.isEmpty && couldNot.isEmpty {
+                status = "“\(project.name)” already set up."
+            } else {
+                var msg = "Set up “\(project.name)”"
+                if !parts.isEmpty { msg += " — " + parts.joined(separator: ", ") }
+                if !couldNot.isEmpty { msg += "; \(couldNot.count) open elsewhere (open here manually)" }
+                status = msg + "."
             }
         }
     }
+
+    private func describeSwitch(_ project: Project, _ result: SwitchResult) -> String {
+        switch result {
+        case .switched:                  return "Switched to “\(project.name)”."
+        case .driftDetected:             return "“\(project.name)”: desktop moved — Recalibrate from its menu."
+        case .blocked(.secureInput):     return "“\(project.name)”: blocked by Secure Input (a password field is focused)."
+        case .blocked(.shortcutDisabled):return "“\(project.name)”: enable Switch-to-Desktop shortcuts in System Settings."
+        case .verificationFailed:        return "“\(project.name)”: switch not confirmed — didn't land in time."
+        case .notKeyable(let index):     return "“\(project.name)”: desktop \(index) has no Ctrl+number shortcut."
+        }
+    }
+
+    /// Apps we can best-effort "open a new window here" via AppleScript.
+    private static let browserBundleIDs: Set<String> = [
+        "com.google.Chrome", "com.google.Chrome.beta", "com.google.Chrome.canary",
+        "com.apple.Safari", "company.thebrowser.Browser", "com.brave.Browser",
+        "com.microsoft.edgemac", "com.vivaldi.Vivaldi", "org.mozilla.firefox",
+    ]
 }

@@ -58,10 +58,15 @@ struct MenuBarListView: View {
                 })
                 .textFieldStyle(.roundedBorder)
             } else {
+                let isCurrent = model.currentProject?.id == project.id
                 Button { model.enter(project) } label: {
                     HStack(spacing: 8) {
+                        Image(systemName: isCurrent ? "largecircle.fill.circle" : "circle")
+                            .font(.caption2)
+                            .foregroundStyle(isCurrent ? Color.accentColor : Color.secondary.opacity(0.35))
+                            .help(isCurrent ? "You're on this desktop" : "")
                         Text(project.emoji ?? "🗂").frame(width: 20)
-                        Text(project.name)
+                        Text(project.name).fontWeight(isCurrent ? .semibold : .regular)
                         Spacer()
                         if project.drifted {
                             Image(systemName: "exclamationmark.triangle.fill")
@@ -74,6 +79,8 @@ struct MenuBarListView: View {
                 .buttonStyle(.plain)
 
                 Menu {
+                    Button("Bring up apps here") { model.bringUpApps(project) }
+                    Divider()
                     Button("Rename") { renameText = project.name; renamingID = project.id }
                     Button("Update apps from this desktop") { model.updateApps(project) }
                     if project.drifted {
