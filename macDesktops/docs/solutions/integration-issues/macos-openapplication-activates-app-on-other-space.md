@@ -79,11 +79,35 @@ model now splits the two:
 - **Navigation = switch only.** Clicking a project just switches Spaces; no apps
   touched. (This refines the origin's "entering launches apps" — R4.)
 - **Set-up = explicit, on demand.** A separate "Bring up apps here" action does the
-  boot: launch fully-closed apps; skip apps already windowed here (no duplicates);
-  for an app running on *another* desktop, best-effort open a **new window** here
-  (browsers, via AppleScript `make new window` — needs Automation permission, and
-  macOS, not you, picks the landing Space). Report honestly when an app can't comply.
+  boot, deciding per app by **window presence** (via AX `kAXWindowsAttribute`, which
+  counts an app's windows across all Spaces):
+  - not running → launch (window opens here);
+  - running but **windowless** (closed its windows, not quit) → reopen → window opens
+    here (no bounce — there's no existing window to anchor to);
+  - already windowed here → skip (no duplicate);
+  - **windows on another desktop → report only, do NOT act.**
 
-Key constraint reaffirmed: you cannot relocate a running app's existing window to
-another Space without window management. "Bring it here" means *open a new window*,
-never *move the old one*.
+**Hard constraint (tested 3 ways, do not retry):** you cannot place a window of an
+already-windowed app onto a *different* Space programmatically. All three bounce
+(activate the app and travel to its existing window's Space):
+1. `NSWorkspace.openApplication(activates:true)` — activates the existing window.
+2. AppleScript `tell app to make new window` — new window born on the app's Space.
+3. **AX-driving the Dock's "New Window" menu item** — even replicating the exact
+   manual gesture via Accessibility bounces (the synthetic press still activates +
+   travels), though the *human* mouse gesture does not. Confirmed for Chrome and Safari.
+
+So "bring it here" only works for **quit** (launch) or **windowless** (reopen) apps —
+both land on the current Space because there's no existing window to anchor to.
+Relocating/duplicating a window onto another Space needs window management (private
+CGS `CGSMoveWindowsToManagedSpace`), which on **macOS 14.5+ requires a scripting
+addition / SIP disabled** — a non-starter for a normal notarized app. Treat
+cross-Space window placement as genuinely out of reach without SIP-off.
+
+## Capture hygiene: filter to .regular apps
+
+When enumerating "the apps on this desktop" from `CGWindowListCopyWindowInfo`, the
+list includes system agents (Control Center, Notification Center, menu-bar
+utilities) and your own agent app — `.excludeDesktopElements` does NOT drop them.
+Filter each window's owner to `NSRunningApplication.activationPolicy == .regular`:
+that single check keeps only normal Dock-having apps and drops the agents *and*
+your own `.accessory` menu-bar app, so blueprints capture only real user apps.
