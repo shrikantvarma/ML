@@ -33,18 +33,4 @@ public enum AppLauncher {
         return (try? await NSWorkspace.shared.openApplication(at: url, configuration: config)) != nil
     }
 
-    /// Best-effort "open a new window here" for an app already running elsewhere,
-    /// via AppleScript `make new window`. Works for scriptable apps (browsers);
-    /// returns false if the app isn't scriptable or Automation permission is denied.
-    /// Caveat: macOS, not us, decides which Space the new window lands on — for some
-    /// apps it may open on the app's existing Space rather than the current one.
-    @discardableResult
-    public static func openNewWindow(bundleID: String) -> Bool {
-        guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first,
-              let name = app.localizedName else { return false }
-        var error: NSDictionary?
-        NSAppleScript(source: "tell application \"\(name)\" to make new window")?
-            .executeAndReturnError(&error)
-        return error == nil
-    }
 }

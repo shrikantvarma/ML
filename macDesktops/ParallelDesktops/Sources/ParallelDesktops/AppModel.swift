@@ -250,31 +250,49 @@ final class AppModel: ObservableObject {
                 }
             }
             let here = AppInspector.bundleIDsOnCurrentDesktop()
-            let running = AppLauncher.runningBundleIDs()
-            var launched = 0, brought = 0
-            var couldNot: [String] = []
+            let selfID = Bundle.main.bundleIdentifier
+            var openedHere = 0            // launched (quit) or reopened (windowless) onto this desktop
+            var elsewhere: [String] = []  // running with windows on another desktop — can't relocate
 
             for bundleID in project.blueprint.bundleIDs where !here.contains(bundleID) {
-                if !running.contains(bundleID) {
-                    if await AppLauncher.launch(bundleID: bundleID) { launched += 1 }
-                    else { couldNot.append(bundleID) }
-                } else if Self.browserBundleIDs.contains(bundleID) {
-                    if AppLauncher.openNewWindow(bundleID: bundleID) { brought += 1 }
-                    else { couldNot.append(bundleID) }
+                if bundleID == selfID { continue }  // never act on ourselves
+
+                guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first else {
+                    // Not running at all → launch; its window opens here.
+                    if await AppLauncher.launch(bundleID: bundleID) { openedHere += 1 }
+                    else { elsewhere.append(bundleID) }
+                    continue
+                }
+                // Running. ?? 1 = assume "has windows" when AX can't tell us, so we
+                // never risk the focus-yank bounce on an uncertain app.
+                let windows = AppInspector.windowCount(pid: app.processIdentifier) ?? 1
+                if windows == 0 {
+                    // Windowless (closed its windows, not quit) → reopen a window HERE.
+                    if await AppLauncher.launch(bundleID: bundleID) { openedHere += 1 }
+                    else { elsewhere.append(bundleID) }
                 } else {
-                    couldNot.append(bundleID)  // running elsewhere, can't relocate a window
+                    // Has windows on another desktop. No programmatic path found that
+                    // places a window on THIS Space without bouncing (openApplication,
+                    // AppleScript, and AX-driven Dock menu all activate-and-travel). So
+                    // we report instead of yanking you away. See SPIKE notes.
+                    elsewhere.append(bundleID)
                 }
             }
 
             var parts: [String] = []
-            if launched > 0 { parts.append("launched \(launched)") }
-            if brought > 0 { parts.append("opened \(brought) here") }
-            if parts.isEmpty && couldNot.isEmpty {
+            if openedHere > 0 { parts.append("\(openedHere) opened here") }
+            if parts.isEmpty && elsewhere.isEmpty {
                 status = "“\(project.name)” already set up."
             } else {
                 var msg = "Set up “\(project.name)”"
                 if !parts.isEmpty { msg += " — " + parts.joined(separator: ", ") }
-                if !couldNot.isEmpty { msg += "; \(couldNot.count) open elsewhere (open here manually)" }
+                if !elsewhere.isEmpty {
+                    let names = elsewhere.compactMap { id in
+                        NSRunningApplication.runningApplications(withBundleIdentifier: id).first?.localizedName
+                    }
+                    let label = names.isEmpty ? "\(elsewhere.count)" : names.joined(separator: ", ")
+                    msg += "; \(label) open on another desktop (can't relocate)"
+                }
                 status = msg + "."
             }
         }
@@ -291,10 +309,4 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// Apps we can best-effort "open a new window here" via AppleScript.
-    private static let browserBundleIDs: Set<String> = [
-        "com.google.Chrome", "com.google.Chrome.beta", "com.google.Chrome.canary",
-        "com.apple.Safari", "company.thebrowser.Browser", "com.brave.Browser",
-        "com.microsoft.edgemac", "com.vivaldi.Vivaldi", "org.mozilla.firefox",
-    ]
 }
