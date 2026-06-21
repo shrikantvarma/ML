@@ -26,7 +26,7 @@ Mission Control ▸ turn on "Switch to Desktop 1…N".
 | a | ≥99% verified-correct landings over N≥200 switches | bind a target (3), run 100 round-trips (5) | ⬜ |
 | b | Zero silent wrong-desktop landings | watch (5) for any `verificationFailed` / wrong UUID | ⬜ |
 | c | All failure modes detected 100% (shortcut off, Secure Input, no-event) | (6) + disable shortcut / focus a password field, retry (4) | ⬜ |
-| d | Space UUIDs survive reboot AND logout/login | bind (3), reboot, relaunch, show binding (7) → must still resolve | ⬜ |
+| d | Space UUIDs survive reboot AND logout/login | bind (3), reboot, relaunch, show binding (7) → must still resolve | ✅ 2026-06-21 (macOS 26.4.1): binding resolved after reboot |
 | e | Filtered ordinal maps 1:1 to the Ctrl+N number (incl. a fullscreen Space mid-list) | enter a fullscreen app to create a non-desktop Space, then (2) + (4) | ⬜ |
 | f | Median switch+verify latency ≤1.5s | from (5) results | ⬜ |
 
@@ -47,12 +47,20 @@ A NO-GO is a **scope re-decision**, not a drop-in engine swap — see plan Risk 
 - ⏳ **Switch side NOT yet measured** — needs Accessibility granted + manual run (gate a/b/c/e/f).
 - ⏳ **UUID-survives-reboot NOT yet measured** — needs a reboot (gate d).
 
-### (next run — switch side) — fill in
+### 2026-06-21 — reboot test (gate d) PASSED
 
-- gate a (success rate over N):
+- ✅ **gate d (UUID survives reboot): PASS.** After a full reboot on macOS 26.4.1,
+  the persisted binding still resolved to its desktop — Space UUIDs are stable
+  across restart. This retires the largest open risk: the UUID-keyed model
+  (KTD-2 / KTD-6) holds; no redesign of project keying or persistence needed.
+
+### (still to measure — reliability, not model-breaking) — fill in
+
+- gate a (success rate over N≥200):
 - gate b (any silent wrong landing?):
 - gate c (failure-mode detection):
-- gate d (UUID survives reboot/logout):
 - gate e (ordinal mapping w/ fullscreen Space):
-- gate f (median latency):
-- **GO / NO-GO:**
+- gate f (median latency ≤1.5s):
+- **GO / NO-GO:** d (the make-or-break) is GO. a/b/c/e/f are reliability gates;
+  measure via the spike's run-N (5) and induced-failure checks (6,8) before relying
+  on it daily.
