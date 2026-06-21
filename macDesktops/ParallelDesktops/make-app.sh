@@ -36,7 +36,23 @@ cat > "${APP}/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
-# Ad-hoc sign so TCC (Accessibility) keys to a stable identity across runs.
-codesign --force --deep --sign - "${APP}" >/dev/null 2>&1 || echo "warn: ad-hoc codesign skipped"
+# Pick the best available signing identity:
+#   Developer ID Application (distributable, notarizable)  >  Apple Development
+#   (stable local identity, fixes Accessibility re-grant churn)  >  ad-hoc.
+# Override with SIGN_ID="..." if needed.
+if [ -z "${SIGN_ID:-}" ]; then
+  SIGN_ID="$(security find-identity -v -p codesigning | awk -F\" '/Developer ID Application/{print $2; exit}')"
+  [ -z "${SIGN_ID}" ] && SIGN_ID="$(security find-identity -v -p codesigning | awk -F\" '/Apple Development/{print $2; exit}')"
+fi
+
+if [ -n "${SIGN_ID}" ]; then
+  echo "Signing with: ${SIGN_ID}"
+  # --options runtime (hardened runtime) so the same build is notarization-ready;
+  # SkyLight is Apple-signed, so dlopen passes library validation.
+  codesign --force --deep --options runtime --sign "${SIGN_ID}" "${APP}"
+else
+  echo "No signing identity found - falling back to ad-hoc (grant resets each rebuild)."
+  codesign --force --deep --sign - "${APP}" || true
+fi
 
 echo "Done: $(pwd)/${APP}"
