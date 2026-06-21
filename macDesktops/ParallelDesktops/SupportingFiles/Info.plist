@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Source-of-truth Info.plist for the eventual Xcode app target (plan KTD-1/KTD-7).
+  Not wired into the SwiftPM build today — no-Dock-icon is done at runtime via
+  NSApp.setActivationPolicy(.accessory). Migrate this in when adding signing/notarization.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>Parallel Project Desktops</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.shrikant.parallel-project-desktops</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+</dict>
+</plist>
