@@ -2,6 +2,7 @@
 title: "NSWorkspace.openApplication on an app running elsewhere yanks you to its Space"
 module: "macOS Spaces / app launching"
 date: 2026-06-21
+last_updated: 2026-06-21
 problem_type: integration_issue
 component: tooling
 severity: high
@@ -68,3 +69,21 @@ correct v1 behavior is to leave running apps where they are.
   *visible on this Space*.
 - Test the dedupe as a pure function:
   `toLaunch(blueprint:["a","b"], alreadyRunning:["a","b"]) == []`.
+
+## Refinement (2026-06-21): separate navigate from set-up
+
+Using the app revealed that auto-launching on *every* desktop switch is wrong —
+you navigate constantly, and it relaunches apps you closed on purpose. The shipped
+model now splits the two:
+
+- **Navigation = switch only.** Clicking a project just switches Spaces; no apps
+  touched. (This refines the origin's "entering launches apps" — R4.)
+- **Set-up = explicit, on demand.** A separate "Bring up apps here" action does the
+  boot: launch fully-closed apps; skip apps already windowed here (no duplicates);
+  for an app running on *another* desktop, best-effort open a **new window** here
+  (browsers, via AppleScript `make new window` — needs Automation permission, and
+  macOS, not you, picks the landing Space). Report honestly when an app can't comply.
+
+Key constraint reaffirmed: you cannot relocate a running app's existing window to
+another Space without window management. "Bring it here" means *open a new window*,
+never *move the old one*.
