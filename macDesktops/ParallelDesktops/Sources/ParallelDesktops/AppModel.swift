@@ -66,7 +66,10 @@ final class AppModel: ObservableObject {
         }
         wsCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification,
                              object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.refreshCurrentContext() }
+            MainActor.assumeIsolated {
+                self?.refreshCurrentContext()
+                self?.refreshPermissions()   // catches return from System Settings
+            }
         }
     }
 
@@ -216,9 +219,11 @@ final class AppModel: ObservableObject {
             let result = await engine.switch(toSpaceUUID: project.spaceUUID)
             switch result {
             case .switched:
-                let here = AppInspector.bundleIDsOnCurrentDesktop()
+                // Only launch apps that aren't running anywhere — activating an app
+                // running on another desktop would yank us off this one (the bounce).
+                let running = AppLauncher.runningBundleIDs()
                 let launched = await AppLauncher.launchMissing(
-                    blueprint: project.blueprint.bundleIDs, presentHere: here)
+                    blueprint: project.blueprint.bundleIDs, alreadyRunning: running)
                 status = launched.isEmpty
                     ? "Entered “\(project.name)”."
                     : "Entered “\(project.name)” — launched \(launched.count) app(s)."

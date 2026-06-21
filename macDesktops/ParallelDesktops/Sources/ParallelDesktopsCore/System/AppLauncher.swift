@@ -1,21 +1,31 @@
 import Foundation
 import AppKit
 
-/// Launches only the blueprint apps not already present on this desktop (plan U8).
+/// Launches only the blueprint apps that aren't running at all (plan U8).
 public enum AppLauncher {
-    /// Pure, testable dedupe: which blueprint apps need launching given the apps
-    /// already present on this desktop. Scoped to "present here", not system-wide
-    /// "running" — an app open only on another desktop is still launched here (U8).
-    public static func toLaunch(blueprint: [String], presentHere: Set<String>) -> [String] {
-        blueprint.filter { !presentHere.contains($0) }
+    /// Pure, testable dedupe: which blueprint apps need launching.
+    ///
+    /// v1 excludes apps that are **already running anywhere**, not just "present on
+    /// this desktop". Activating an app that's running on another desktop can't move
+    /// its window here — it only yanks focus to that desktop (and, with the macOS
+    /// "switch to a Space with open windows" setting, switches Spaces). Pulling a
+    /// running app's window onto this desktop needs window management (deferred), so
+    /// v1 leaves already-running apps where they are.
+    public static func toLaunch(blueprint: [String], alreadyRunning: Set<String>) -> [String] {
+        blueprint.filter { !alreadyRunning.contains($0) }
     }
 
-    /// Launches the missing apps. Already-present apps are neither relaunched nor
-    /// duplicated (`createsNewApplicationInstance = false`).
+    /// Bundle IDs of every currently-running app (system-wide).
+    public static func runningBundleIDs() -> Set<String> {
+        Set(NSWorkspace.shared.runningApplications.compactMap { $0.bundleIdentifier })
+    }
+
+    /// Launches the not-running blueprint apps onto the current desktop. Running
+    /// apps are left untouched (no relaunch, no focus-yank).
     @discardableResult
-    public static func launchMissing(blueprint: [String], presentHere: Set<String>) async -> [String] {
+    public static func launchMissing(blueprint: [String], alreadyRunning: Set<String>) async -> [String] {
         var launched: [String] = []
-        for bundleID in toLaunch(blueprint: blueprint, presentHere: presentHere) {
+        for bundleID in toLaunch(blueprint: blueprint, alreadyRunning: alreadyRunning) {
             guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {
                 continue  // unresolvable app URL → skip with no crash (U8)
             }

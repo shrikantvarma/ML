@@ -46,6 +46,7 @@ struct MenuBarListView: View {
         }
         .padding(12)
         .frame(width: 320)
+        .onAppear { model.refreshPermissions() }   // re-check whenever the popover opens
     }
 
     @ViewBuilder

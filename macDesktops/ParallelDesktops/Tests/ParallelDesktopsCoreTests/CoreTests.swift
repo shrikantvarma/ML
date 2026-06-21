@@ -101,12 +101,15 @@ final class SwitchEngineTests: XCTestCase {
 // MARK: - Boot dedupe (U8)
 
 final class LaunchTests: XCTestCase {
-    func testExcludesAppsPresentHere() {
-        XCTAssertEqual(AppLauncher.toLaunch(blueprint: ["a", "b", "c"], presentHere: ["b"]), ["a", "c"])
+    func testExcludesAppsAlreadyRunning() {
+        XCTAssertEqual(AppLauncher.toLaunch(blueprint: ["a", "b", "c"], alreadyRunning: ["b"]), ["a", "c"])
     }
-    func testAppRunningElsewhereStillLaunched() {
-        // "present here" is the only exclusion (not system-wide running).
-        XCTAssertEqual(AppLauncher.toLaunch(blueprint: ["a", "b"], presentHere: []), ["a", "b"])
+    func testRunningAppIsNotRelaunched() {
+        // v1: an app running anywhere is left alone (avoids the focus-yank bounce).
+        XCTAssertEqual(AppLauncher.toLaunch(blueprint: ["a", "b"], alreadyRunning: ["a", "b"]), [])
+    }
+    func testLaunchesOnlyNotRunning() {
+        XCTAssertEqual(AppLauncher.toLaunch(blueprint: ["a", "b"], alreadyRunning: []), ["a", "b"])
     }
 }
 
