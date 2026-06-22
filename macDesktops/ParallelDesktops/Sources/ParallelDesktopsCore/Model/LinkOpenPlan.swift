@@ -17,14 +17,20 @@ public struct LinkOpenPlan: Equatable {
 
     /// Build the plan from the live Space and the project's settings. `urls` is the
     /// caller's selection (all links, or one) — filtered to allowed schemes (KTD8).
-    /// An invalid/path-like `chromeProfileFolder` (e.g. from a hand-edited or synced
-    /// projects.json) is rejected here (KTD9) and falls back to the default browser,
-    /// so it can never reach `--profile-directory`.
-    public static func make(project: Project, currentSpaceUUID: String?, urls: [String]) -> LinkOpenPlan {
-        let folder = project.chromeProfileFolder.flatMap { ChromeProfiles.isValidFolder($0) ? $0 : nil }
+    ///
+    /// Profile resolution (each validated against KTD9; invalid/path-like values are
+    /// rejected so they can never reach `--profile-directory`):
+    ///   1. the project's explicitly-pinned `chromeProfileFolder`, else
+    ///   2. `chromeFallbackFolder` — Chrome's last-used profile, so links land in the
+    ///      profile the user actually works in with zero setup, else
+    ///   3. nil → the system default browser (only when Chrome isn't installed).
+    public static func make(project: Project, currentSpaceUUID: String?, urls: [String],
+                            chromeFallbackFolder: String? = nil) -> LinkOpenPlan {
+        let explicit = project.chromeProfileFolder.flatMap { ChromeProfiles.isValidFolder($0) ? $0 : nil }
+        let fallback = chromeFallbackFolder.flatMap { ChromeProfiles.isValidFolder($0) ? $0 : nil }
         return LinkOpenPlan(
             needsSwitch: currentSpaceUUID != project.spaceUUID,
-            profileFolder: folder,
+            profileFolder: explicit ?? fallback,
             urls: urls.filter(LinkURL.isAllowed)
         )
     }

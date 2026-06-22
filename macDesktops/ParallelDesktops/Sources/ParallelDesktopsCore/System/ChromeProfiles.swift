@@ -44,12 +44,38 @@ public enum ChromeProfiles {
         return Array(profiles.sorted { rank($0.folder) < rank($1.folder) }.prefix(maxProfiles))
     }
 
+    /// Chrome's currently/last-used profile folder (`profile.last_used`), validated.
+    /// nil when absent or not a real user profile. This is the smart fallback when a
+    /// project hasn't pinned a profile — it's the one the user actually works in.
+    public static func parseLastUsed(localStateJSON data: Data) -> String? {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let profile = root["profile"] as? [String: Any],
+              let last = profile["last_used"] as? String,
+              isValidFolder(last) else { return nil }
+        return last
+    }
+
+    /// Profiles + last-used folder from a single `Local State` read.
+    public struct Info: Equatable {
+        public var profiles: [ChromeProfile]
+        public var lastUsedFolder: String?
+        public init(profiles: [ChromeProfile] = [], lastUsedFolder: String? = nil) {
+            self.profiles = profiles
+            self.lastUsedFolder = lastUsedFolder
+        }
+    }
+
     /// Thin: read `~/Library/Application Support/Google/Chrome/Local State` and parse.
     /// Returns `[]` when absent/unreadable — Chrome may not be installed. Callers
     /// should read off the main thread and cache (picker reads the cache, not disk).
     public static func load(from url: URL = defaultLocalStateURL) -> [ChromeProfile] {
-        guard let data = try? Data(contentsOf: url) else { return [] }
-        return parse(localStateJSON: data)
+        loadInfo(from: url).profiles
+    }
+
+    /// Like `load`, but also returns Chrome's last-used profile folder, from one read.
+    public static func loadInfo(from url: URL = defaultLocalStateURL) -> Info {
+        guard let data = try? Data(contentsOf: url) else { return Info() }
+        return Info(profiles: parse(localStateJSON: data), lastUsedFolder: parseLastUsed(localStateJSON: data))
     }
 
     public static var defaultLocalStateURL: URL {

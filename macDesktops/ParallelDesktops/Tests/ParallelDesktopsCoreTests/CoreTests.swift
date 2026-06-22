@@ -170,6 +170,20 @@ final class ChromeProfilesTests: XCTestCase {
         XCTAssertEqual(ChromeProfiles.parse(localStateJSON: #"{ "profile": {} }"#.data(using: .utf8)!), [])
     }
 
+    func testParseLastUsedReturnsValidFolder() {
+        let data = #"{ "profile": { "last_used": "Profile 3", "info_cache": { "Profile 3": { "name": "Shrikant" } } } }"#.data(using: .utf8)!
+        XCTAssertEqual(ChromeProfiles.parseLastUsed(localStateJSON: data), "Profile 3")
+    }
+
+    func testParseLastUsedRejectsInvalidOrMissing() {
+        // Internal folder name → rejected (KTD9).
+        let internalFolder = #"{ "profile": { "last_used": "System Profile", "info_cache": {} } }"#.data(using: .utf8)!
+        XCTAssertNil(ChromeProfiles.parseLastUsed(localStateJSON: internalFolder))
+        // Missing key → nil.
+        XCTAssertNil(ChromeProfiles.parseLastUsed(localStateJSON: #"{ "profile": {} }"#.data(using: .utf8)!))
+        XCTAssertNil(ChromeProfiles.parseLastUsed(localStateJSON: Data()))
+    }
+
     func testIsValidFolder() {
         XCTAssertTrue(ChromeProfiles.isValidFolder("Default"))
         XCTAssertTrue(ChromeProfiles.isValidFolder("Profile 1"))
@@ -272,6 +286,34 @@ final class LinkOpenPlanTests: XCTestCase {
         let p = project(space: "S1", profile: "../../evil", links: ["https://x.com"])
         XCTAssertNil(LinkOpenPlan.make(project: p, currentSpaceUUID: "S1", urls: ["https://x.com"]).profileFolder,
                      "invalid folder falls back to the default browser path")
+    }
+
+    func testFallbackUsedWhenNoExplicitProfile() {
+        let p = project(space: "S1", profile: nil, links: ["https://x.com"])
+        let plan = LinkOpenPlan.make(project: p, currentSpaceUUID: "S1",
+                                     urls: ["https://x.com"], chromeFallbackFolder: "Profile 3")
+        XCTAssertEqual(plan.profileFolder, "Profile 3", "no explicit profile → Chrome's last-used")
+    }
+
+    func testExplicitProfileBeatsFallback() {
+        let p = project(space: "S1", profile: "Profile 5", links: ["https://x.com"])
+        let plan = LinkOpenPlan.make(project: p, currentSpaceUUID: "S1",
+                                     urls: ["https://x.com"], chromeFallbackFolder: "Profile 3")
+        XCTAssertEqual(plan.profileFolder, "Profile 5", "explicit pin wins over the fallback")
+    }
+
+    func testInvalidFallbackIgnored() {
+        let p = project(space: "S1", profile: nil, links: ["https://x.com"])
+        let plan = LinkOpenPlan.make(project: p, currentSpaceUUID: "S1",
+                                     urls: ["https://x.com"], chromeFallbackFolder: "PPDTest")
+        XCTAssertNil(plan.profileFolder, "an invalid fallback folder → default browser, never --profile-directory")
+    }
+
+    func testNoFallbackWhenChromeAbsent() {
+        let p = project(space: "S1", profile: nil, links: ["https://x.com"])
+        let plan = LinkOpenPlan.make(project: p, currentSpaceUUID: "S1",
+                                     urls: ["https://x.com"], chromeFallbackFolder: nil)
+        XCTAssertNil(plan.profileFolder, "no explicit + no fallback → default browser")
     }
 }
 

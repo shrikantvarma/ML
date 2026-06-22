@@ -220,11 +220,17 @@ final class AppModel: ObservableObject {
     /// Available Chrome profiles for the "Open links in profile…" picker. Loaded off
     /// the main thread and cached (empty when Chrome isn't installed).
     @Published var chromeProfiles: [ChromeProfile] = []
+    /// Chrome's last-used profile folder — the no-setup fallback for projects that
+    /// haven't pinned one. nil when Chrome isn't installed (→ default browser).
+    private var chromeLastUsedFolder: String?
 
     private func loadChromeProfiles() {
         Task.detached(priority: .utility) {
-            let profiles = ChromeProfiles.load()
-            await MainActor.run { [weak self] in self?.chromeProfiles = profiles }
+            let info = ChromeProfiles.loadInfo()
+            await MainActor.run { [weak self] in
+                self?.chromeProfiles = info.profiles
+                self?.chromeLastUsedFolder = info.lastUsedFolder
+            }
         }
     }
 
@@ -315,7 +321,8 @@ final class AppModel: ObservableObject {
     private func switchSettleOpen(_ project: Project, urls rawURLs: [String]) async -> LinkOpenOutcome {
         let plan = LinkOpenPlan.make(project: project,
                                      currentSpaceUUID: spaces.currentSpaceUUID(),
-                                     urls: rawURLs)
+                                     urls: rawURLs,
+                                     chromeFallbackFolder: chromeLastUsedFolder)
         guard !plan.urls.isEmpty else { return .noLinks }
 
         var bounced = false
