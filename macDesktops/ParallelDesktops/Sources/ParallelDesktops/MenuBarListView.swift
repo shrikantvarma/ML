@@ -50,15 +50,26 @@ struct MenuBarListView: View {
 
             Divider()
 
-            HStack {
-                TextField("Save this desktop as…", text: $newName)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit(save)
-                Button("Save", action: save)
-                    .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
+            if let current = model.currentProject {
+                // This desktop is already a saved project — don't offer to "save" it again.
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Color.accentColor).font(.caption)
+                    Text("This desktop is “\(current.name)” — manage it from its row above (•••).")
+                        .font(.caption2).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } else {
+                HStack {
+                    TextField("Save this desktop as…", text: $newName)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit(save)
+                    Button("Save", action: save)
+                        .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                Text("Saves the apps open here as a project bound to this desktop.")
+                    .font(.caption2).foregroundStyle(.secondary)
             }
-            Text("To update an existing desktop's apps, use its ••• ▸ Update apps.")
-                .font(.caption2).foregroundStyle(.secondary)
 
             if !model.status.isEmpty {
                 Text(model.status).font(.caption).foregroundStyle(.secondary)
