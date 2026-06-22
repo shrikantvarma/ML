@@ -234,4 +234,92 @@ final class ProjectStoreTests: XCTestCase {
             XCTAssertEqual(error as? ProjectStore.StoreError, .capExceeded)
         }
     }
+
+    // MARK: U1 — links + profile persistence and migration safety
+
+    func testLinksAndProfileRoundTrip() throws {
+        let url = tempURL(); defer { try? FileManager.default.removeItem(at: url) }
+        let links = [Link(url: "https://linkedin.com", title: "LinkedIn"),
+                     Link(url: "https://gmail.com", title: "Gmail")]
+        let store = ProjectStore(url: url)
+        try store.add(Project(name: "Comms", spaceUUID: "U1",
+                              blueprint: Blueprint(bundleIDs: ["com.a"], links: links),
+                              chromeProfileFolder: "Profile 3"))
+        let reopened = ProjectStore(url: url)
+        let p = try XCTUnwrap(reopened.projects.first)
+        XCTAssertEqual(p.blueprint.links.map(\.url), ["https://linkedin.com", "https://gmail.com"],
+                       "link order must survive the round-trip")
+        XCTAssertEqual(p.blueprint.links.map(\.title), ["LinkedIn", "Gmail"])
+        XCTAssertEqual(p.chromeProfileFolder, "Profile 3")
+    }
+
+    /// The migration guarantee (KTD1): an existing file with no `links` key (and no
+    /// `chromeProfileFolder`) decodes to defaults — it must NOT be quarantined.
+    func testMissingLinksKeyDecodesToDefaultsNotQuarantined() throws {
+        let url = tempURL(); defer {
+            try? FileManager.default.removeItem(at: url)
+            try? FileManager.default.removeItem(at: url.appendingPathExtension("corrupt"))
+        }
+        // Hand-written "old" file: blueprint has no `links`, project has no profile.
+        let legacy = """
+        {
+          "schemaVersion": 1,
+          "projects": [
+            {
+              "id": "\(UUID().uuidString)",
+              "name": "Legacy",
+              "spaceUUID": "U1",
+              "blueprint": { "bundleIDs": ["com.a"], "frames": {} },
+              "resume": {},
+              "drifted": false
+            }
+          ]
+        }
+        """
+        try legacy.data(using: .utf8)!.write(to: url)
+        let store = ProjectStore(url: url)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.appendingPathExtension("corrupt").path),
+                       "a missing links key is a migration, not corruption")
+        let p = try XCTUnwrap(store.projects.first)
+        XCTAssertEqual(p.name, "Legacy")
+        XCTAssertEqual(p.blueprint.links, [], "missing links key → empty default")
+        XCTAssertNil(p.chromeProfileFolder, "missing profile key → nil default")
+    }
+
+    /// The other side of the boundary: `links` present but wrong-typed is genuine
+    /// corruption and still quarantines.
+    func testMalformedLinksValueIsQuarantined() throws {
+        let url = tempURL(); defer {
+            try? FileManager.default.removeItem(at: url)
+            try? FileManager.default.removeItem(at: url.appendingPathExtension("corrupt"))
+        }
+        let bad = """
+        {
+          "schemaVersion": 1,
+          "projects": [
+            {
+              "id": "\(UUID().uuidString)",
+              "name": "Bad",
+              "spaceUUID": "U1",
+              "blueprint": { "bundleIDs": [], "frames": {}, "links": "not-an-array" },
+              "resume": {},
+              "drifted": false
+            }
+          ]
+        }
+        """
+        try bad.data(using: .utf8)!.write(to: url)
+        let store = ProjectStore(url: url)
+        XCTAssertTrue(store.projects.isEmpty)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.appendingPathExtension("corrupt").path),
+                      "present-but-malformed links must quarantine, not silently default")
+    }
+
+    func testLinkEquatable() {
+        let id = UUID()
+        XCTAssertEqual(Link(id: id, url: "https://x.com", title: "X"),
+                       Link(id: id, url: "https://x.com", title: "X"))
+        XCTAssertNotEqual(Link(id: id, url: "https://x.com", title: "X"),
+                          Link(id: id, url: "https://y.com", title: "X"))
+    }
 }

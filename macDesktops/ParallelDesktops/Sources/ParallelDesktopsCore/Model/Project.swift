@@ -9,13 +9,45 @@ public struct WindowFrame: Codable, Equatable {
     }
 }
 
-/// The set of apps that define a project, plus passively-recorded frames.
+/// An important webpage for a project, opened on its desktop via the validated
+/// switch→settle→open recipe (plan U1/D1). `url` is constrained to http/https at
+/// authoring and open time (KTD8); `title` is user-editable, host-seeded.
+public struct Link: Identifiable, Codable, Equatable {
+    public var id: UUID
+    public var url: String
+    public var title: String
+    public init(id: UUID = UUID(), url: String, title: String) {
+        self.id = id
+        self.url = url
+        self.title = title
+    }
+}
+
+/// The set of apps that define a project, its passively-recorded frames, and the
+/// project's ordered links. `links` is additive and migration-safe: existing
+/// `projects.json` files (no `links` key) decode without a schemaVersion bump (KTD1).
 public struct Blueprint: Codable, Equatable {
     public var bundleIDs: [String]
     public var frames: [String: WindowFrame]   // bundleID → last frame
-    public init(bundleIDs: [String] = [], frames: [String: WindowFrame] = [:]) {
+    public var links: [Link]                   // ordered; array order is user order
+    public init(bundleIDs: [String] = [], frames: [String: WindowFrame] = [:],
+                links: [Link] = []) {
         self.bundleIDs = bundleIDs
         self.frames = frames
+        self.links = links
+    }
+
+    private enum CodingKeys: String, CodingKey { case bundleIDs, frames, links }
+
+    // Custom decode because synthesized Decodable ignores property defaults and would
+    // throw keyNotFound on an old file with no `links` key. `decodeIfPresent ?? []`
+    // makes a missing key a migration (→ []) while a present-but-malformed value still
+    // throws (→ the store quarantines it). encode(to:) stays synthesized.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.bundleIDs = try c.decode([String].self, forKey: .bundleIDs)
+        self.frames = try c.decode([String: WindowFrame].self, forKey: .frames)
+        self.links = try c.decodeIfPresent([Link].self, forKey: .links) ?? []
     }
 }
 
@@ -44,10 +76,15 @@ public struct Project: Codable, Equatable, Identifiable {
     public var blueprint: Blueprint
     public var resume: ResumeContext
     public var drifted: Bool
+    /// On-disk Chrome profile *folder* name (e.g. `Default`, `Profile 3`) this
+    /// project opens links in. nil = system default browser (KTD2/KTD3). Defaulted
+    /// for migration safety (KTD1).
+    public var chromeProfileFolder: String?
 
     public init(id: UUID = UUID(), name: String, emoji: String? = nil, colorHex: String? = nil,
                 spaceUUID: String, blueprint: Blueprint = Blueprint(),
-                resume: ResumeContext = ResumeContext(), drifted: Bool = false) {
+                resume: ResumeContext = ResumeContext(), drifted: Bool = false,
+                chromeProfileFolder: String? = nil) {
         self.id = id
         self.name = name
         self.emoji = emoji
@@ -56,5 +93,6 @@ public struct Project: Codable, Equatable, Identifiable {
         self.blueprint = blueprint
         self.resume = resume
         self.drifted = drifted
+        self.chromeProfileFolder = chromeProfileFolder
     }
 }
