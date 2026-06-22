@@ -24,6 +24,12 @@ final class AppModel: ObservableObject {
     private let store = ProjectStore()
     private let spaces: SpacesProvider = CGSSpacesProvider()
     private let engine: SwitchEngine
+    private let urlOpener: URLOpening = SystemURLOpener()
+
+    /// Post-switch settle before opening Chrome: a browser window is born on the
+    /// Space active at creation, so we must be genuinely settled first (KTD5). 1.5s
+    /// is the only on-device-validated value.
+    private static let linkSettleNanos: UInt64 = 1_500_000_000
 
     /// Last-known per-desktop context, refreshed continuously so the OUTGOING
     /// desktop's state is available after activeSpaceDidChange fires (U12 race fix).
@@ -235,6 +241,78 @@ final class AppModel: ObservableObject {
         }
     }
 
+    // MARK: Open links (U4)
+
+    private enum LinkOpenOutcome {
+        case noLinks
+        case switchFailed(SwitchResult)
+        case opened(Int, bounced: Bool)   // bounced: no-profile + cold Space may land elsewhere (Q1)
+        case chromeFailed                 // Chrome path returned non-zero (e.g. not installed)
+        case defaultFailed
+    }
+
+    /// Open every link of a project on its desktop (the "Open all here" action).
+    func openLinks(_ project: Project) {
+        status = "Switching to “\(project.name)”…"
+        Task {
+            let outcome = await switchSettleOpen(project, urls: project.blueprint.links.map(\.url))
+            status = statusForLinkOpen(project, outcome)
+        }
+    }
+
+    /// Open one link of a project on its desktop.
+    func openLink(_ link: ParallelDesktopsCore.Link, in project: Project) {
+        status = "Switching to “\(project.name)”…"
+        Task {
+            let outcome = await switchSettleOpen(project, urls: [link.url])
+            status = statusForLinkOpen(project, outcome)
+        }
+    }
+
+    /// Switch to the project's Space if needed, verify it landed, settle, then open
+    /// the links via the profile recipe or the default browser (KTD2/KTD5/KTD7).
+    /// Reused by `bringUpApps` after its app loop (R5).
+    private func switchSettleOpen(_ project: Project, urls rawURLs: [String]) async -> LinkOpenOutcome {
+        let plan = LinkOpenPlan.make(project: project,
+                                     currentSpaceUUID: spaces.currentSpaceUUID(),
+                                     urls: rawURLs)
+        guard !plan.urls.isEmpty else { return .noLinks }
+
+        var bounced = false
+        if plan.needsSwitch {
+            let result = await engine.switch(toSpaceUUID: project.spaceUUID)
+            guard case .switched = result else { return .switchFailed(result) }
+            try? await Task.sleep(nanoseconds: Self.linkSettleNanos)
+            bounced = plan.profileFolder == nil   // only the no-profile path risks a bounce
+        }
+
+        if let folder = plan.profileFolder {
+            return urlOpener.openChrome(profileFolder: folder, urls: plan.urls)
+                ? .opened(plan.urls.count, bounced: false) : .chromeFailed
+        } else {
+            var opened = 0
+            for url in plan.urls where urlOpener.openDefault(url: url) { opened += 1 }
+            return opened > 0 ? .opened(opened, bounced: bounced) : .defaultFailed
+        }
+    }
+
+    private func statusForLinkOpen(_ project: Project, _ outcome: LinkOpenOutcome) -> String {
+        switch outcome {
+        case .noLinks:
+            return "“\(project.name)” has no links yet."
+        case .switchFailed(let result):
+            if case .driftDetected = result { recomputeDrift() }
+            return describeSwitch(project, result)
+        case .opened(let n, let bounced):
+            let base = "Opened \(n) page\(n == 1 ? "" : "s") in “\(project.name)”."
+            return bounced ? base + " (may have opened on another desktop)" : base
+        case .chromeFailed:
+            return "“\(project.name)”: couldn't open links — Chrome may not be installed."
+        case .defaultFailed:
+            return "“\(project.name)”: couldn't open the link."
+        }
+    }
+
     /// On-demand "set up this desktop": switch there if needed, then
     ///   • launch blueprint apps that are fully closed (windows open here), and
     ///   • for apps running on another desktop, best-effort open a NEW window here
@@ -283,8 +361,9 @@ final class AppModel: ObservableObject {
 
             var parts: [String] = []
             if openedHere > 0 { parts.append("\(openedHere) opened here") }
+            var appMsg: String
             if parts.isEmpty && elsewhere.isEmpty {
-                status = "“\(project.name)” already set up."
+                appMsg = "“\(project.name)” already set up."
             } else {
                 var msg = "Set up “\(project.name)”"
                 if !parts.isEmpty { msg += " — " + parts.joined(separator: ", ") }
@@ -295,8 +374,26 @@ final class AppModel: ObservableObject {
                     let label = names.isEmpty ? "\(elsewhere.count)" : names.joined(separator: ", ")
                     msg += "; \(label) open on another desktop (can't relocate)"
                 }
-                status = msg + "."
+                appMsg = msg + "."
             }
+
+            // "Bring up here" = apps + links (R5/D5). We're already settled on the
+            // project's Space, so this opens without another switch.
+            let linkOutcome = await switchSettleOpen(project, urls: project.blueprint.links.map(\.url))
+            status = combineBringUp(appMsg, linkOutcome)
+        }
+    }
+
+    private func combineBringUp(_ appMsg: String, _ outcome: LinkOpenOutcome) -> String {
+        switch outcome {
+        case .noLinks, .switchFailed:
+            return appMsg
+        case .opened(let n, _):
+            return appMsg + " Opened \(n) link\(n == 1 ? "" : "s")."
+        case .chromeFailed:
+            return appMsg + " (Links: Chrome may not be installed.)"
+        case .defaultFailed:
+            return appMsg + " (Couldn't open links.)"
         }
     }
 

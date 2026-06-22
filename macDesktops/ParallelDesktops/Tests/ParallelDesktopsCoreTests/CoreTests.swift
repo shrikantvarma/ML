@@ -219,6 +219,49 @@ final class BrowserLauncherTests: XCTestCase {
     }
 }
 
+// MARK: - LinkOpenPlan (U4)
+
+final class LinkOpenPlanTests: XCTestCase {
+    private func project(space: String, profile: String?, links: [String]) -> Project {
+        Project(name: "P", spaceUUID: space,
+                blueprint: Blueprint(links: links.map { Link(url: $0, title: $0) }),
+                chromeProfileFolder: profile)
+    }
+
+    func testNoSwitchWhenAlreadyOnSpace() {
+        let p = project(space: "S1", profile: nil, links: ["https://x.com"])
+        let plan = LinkOpenPlan.make(project: p, currentSpaceUUID: "S1", urls: p.blueprint.links.map(\.url))
+        XCTAssertFalse(plan.needsSwitch)
+    }
+
+    func testSwitchWhenOnDifferentSpace() {
+        let p = project(space: "S1", profile: nil, links: ["https://x.com"])
+        let plan = LinkOpenPlan.make(project: p, currentSpaceUUID: "S2", urls: p.blueprint.links.map(\.url))
+        XCTAssertTrue(plan.needsSwitch)
+    }
+
+    func testProfilePresenceSelectsPath() {
+        let withProfile = project(space: "S1", profile: "Profile 3", links: ["https://x.com"])
+        XCTAssertEqual(LinkOpenPlan.make(project: withProfile, currentSpaceUUID: "S1",
+                                         urls: ["https://x.com"]).profileFolder, "Profile 3")
+        let noProfile = project(space: "S1", profile: nil, links: ["https://x.com"])
+        XCTAssertNil(LinkOpenPlan.make(project: noProfile, currentSpaceUUID: "S1",
+                                       urls: ["https://x.com"]).profileFolder)
+    }
+
+    func testURLsFilteredAndOrderPreserved() {
+        let p = project(space: "S1", profile: nil, links: [])
+        let plan = LinkOpenPlan.make(project: p, currentSpaceUUID: "S1",
+                                     urls: ["https://a.com", "file:///etc/hosts", "https://b.com"])
+        XCTAssertEqual(plan.urls, ["https://a.com", "https://b.com"], "disallowed schemes dropped, order kept")
+    }
+
+    func testEmptyLinksEmptyPlan() {
+        let p = project(space: "S1", profile: nil, links: [])
+        XCTAssertTrue(LinkOpenPlan.make(project: p, currentSpaceUUID: "S1", urls: []).urls.isEmpty)
+    }
+}
+
 // MARK: - Key code mapping (U4)
 
 final class KeyCodeTests: XCTestCase {
