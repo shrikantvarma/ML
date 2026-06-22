@@ -177,8 +177,10 @@ final class AppModel: ObservableObject {
             try store.add(project)
             projects = store.projects; recomputeCurrent()
             status = "Saved “\(trimmed)” (\(bundleIDs.count) apps)."
-        } catch {
+        } catch ProjectStore.StoreError.capExceeded {
             status = "Reached the desktop limit."
+        } catch {
+            status = "Couldn't save “\(trimmed)” — disk error."
         }
     }
 

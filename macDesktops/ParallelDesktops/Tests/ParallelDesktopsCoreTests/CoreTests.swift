@@ -198,6 +198,20 @@ final class ProjectStoreTests: XCTestCase {
         XCTAssertTrue(store.projects.isEmpty)
     }
 
+    func testCorruptFileIsPreservedNotClobbered() throws {
+        let url = tempURL(); defer {
+            try? FileManager.default.removeItem(at: url)
+            try? FileManager.default.removeItem(at: url.appendingPathExtension("corrupt"))
+        }
+        try "not json".data(using: .utf8)!.write(to: url)
+        let store = ProjectStore(url: url)           // corrupt → start empty, back up
+        XCTAssertTrue(store.projects.isEmpty)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.appendingPathExtension("corrupt").path),
+                      "corrupt file must be backed up, not silently overwritten")
+        store.save()                                  // must not destroy the backup
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.appendingPathExtension("corrupt").path))
+    }
+
     func testCapExceeded() {
         let url = tempURL(); defer { try? FileManager.default.removeItem(at: url) }
         let store = ProjectStore(url: url)

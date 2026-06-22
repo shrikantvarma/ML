@@ -68,8 +68,8 @@ public enum AppInspector {
                   app.activationPolicy == .regular,  // real apps only (see appsOnCurrentDesktop)
                   let bundleID = app.bundleIdentifier,
                   frames[bundleID] == nil,
-                  let boundsDict = window[kCGWindowBounds as String],
-                  let rect = CGRect(dictionaryRepresentation: boundsDict as! CFDictionary)
+                  let boundsDict = window[kCGWindowBounds as String] as? NSDictionary,
+                  let rect = CGRect(dictionaryRepresentation: boundsDict as CFDictionary)
             else { continue }
             frames[bundleID] = WindowFrame(x: rect.origin.x, y: rect.origin.y,
                                            w: rect.size.width, h: rect.size.height)

@@ -16,14 +16,27 @@ public final class ProjectStore {
     public static let currentSchemaVersion = 1
     public static let maxProjects = 16   // macOS ceiling; product target is 7–10 (R6)
 
-    public enum StoreError: Error, Equatable { case capExceeded }
+    public enum StoreError: Error, Equatable { case capExceeded, saveFailed }
+
+    private enum ReadResult { case ok(ProjectsFile), absent, corrupt }
 
     public let url: URL
     public private(set) var projects: [Project]
 
     public init(url: URL = ProjectStore.defaultURL) {
         self.url = url
-        self.projects = ProjectStore.read(from: url)?.projects ?? []
+        switch ProjectStore.read(from: url) {
+        case .ok(let file):
+            self.projects = file.projects
+        case .absent:
+            self.projects = []
+        case .corrupt:
+            // Preserve the unreadable file instead of silently overwriting it on the
+            // next save — a corrupt/incompatible file must not become data loss.
+            self.projects = []
+            try? FileManager.default.removeItem(at: url.appendingPathExtension("corrupt"))
+            try? FileManager.default.moveItem(at: url, to: url.appendingPathExtension("corrupt"))
+        }
     }
 
     public static var defaultURL: URL {
@@ -36,7 +49,10 @@ public final class ProjectStore {
     public func add(_ project: Project) throws {
         guard projects.count < Self.maxProjects else { throw StoreError.capExceeded }
         projects.append(project)
-        save()
+        if !save() {
+            projects.removeLast()          // don't claim success when nothing persisted
+            throw StoreError.saveFailed
+        }
     }
 
     public func update(_ project: Project) {
@@ -54,20 +70,29 @@ public final class ProjectStore {
         projects.first { $0.spaceUUID == uuid }
     }
 
-    public func save() {
+    /// Returns false when encode or the atomic write fails, so callers can surface
+    /// a real error instead of reporting success on a silent persistence failure.
+    @discardableResult
+    public func save() -> Bool {
         let file = ProjectsFile(schemaVersion: Self.currentSchemaVersion, projects: projects)
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         enc.dateEncodingStrategy = .iso8601
-        guard let data = try? enc.encode(file) else { return }
-        try? data.write(to: url, options: .atomic)
+        guard let data = try? enc.encode(file) else { return false }
+        do {
+            try data.write(to: url, options: .atomic)
+            return true
+        } catch {
+            return false
+        }
     }
 
-    private static func read(from url: URL) -> ProjectsFile? {
-        guard let data = try? Data(contentsOf: url) else { return nil }
+    private static func read(from url: URL) -> ReadResult {
+        guard let data = try? Data(contentsOf: url) else { return .absent }
         let dec = JSONDecoder()
         dec.dateDecodingStrategy = .iso8601
         // v1 accepts only schemaVersion 1; future versions branch here.
-        return try? dec.decode(ProjectsFile.self, from: data)
+        guard let file = try? dec.decode(ProjectsFile.self, from: data) else { return .corrupt }
+        return .ok(file)
     }
 }
