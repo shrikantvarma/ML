@@ -112,7 +112,12 @@ struct MenuBarListView: View {
                         .font(.caption2)
                         .foregroundStyle(isCurrent ? Color.accentColor : Color.secondary.opacity(0.35))
                         .help(isCurrent ? "You're on this desktop" : "")
-                    Text(project.emoji ?? "🗂").frame(width: 20)
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(projectColor(project).opacity(0.18))
+                        Text(project.emoji ?? "🗂").font(.system(size: 13))
+                    }
+                    .frame(width: 22, height: 22)
                     Text(project.name).fontWeight(isCurrent ? .semibold : .regular)
                     Spacer()
                     if project.drifted {
@@ -298,6 +303,27 @@ struct MenuBarListView: View {
         }
     }
 
+    /// Curated identity palette for project tiles — chosen to stay distinct and calm.
+    private static let projectPalette: [Color] = [
+        Color(red: 0.20, green: 0.52, blue: 0.96),  // blue
+        Color(red: 0.18, green: 0.70, blue: 0.42),  // green
+        Color(red: 0.95, green: 0.55, blue: 0.10),  // orange
+        Color(red: 0.60, green: 0.35, blue: 0.90),  // purple
+        Color(red: 0.92, green: 0.30, blue: 0.45),  // pink
+        Color(red: 0.10, green: 0.65, blue: 0.72),  // teal
+        Color(red: 0.85, green: 0.62, blue: 0.13),  // gold
+        Color(red: 0.40, green: 0.58, blue: 0.22),  // olive
+    ]
+
+    /// A project's identity color: its explicit `colorHex` when set (the future
+    /// "Set color…" override), else a stable pick from the palette by project id.
+    private func projectColor(_ project: Project) -> Color {
+        if let hex = project.colorHex, let c = Color(hex: hex) { return c }
+        var hash = 5381
+        for byte in project.id.uuidString.utf8 { hash = (hash &* 33) &+ Int(byte) }
+        return Self.projectPalette[abs(hash) % Self.projectPalette.count]
+    }
+
     /// A brand-ish color for a link's favicon square (no network fetch in v1 — real
     /// favicons are deferred). Known hosts get their brand color; everything else gets
     /// a vivid, stable hue from the host.
@@ -342,6 +368,19 @@ struct MenuBarListView: View {
     private func save() {
         model.saveCurrentDesktopAsProject(name: newName)
         newName = ""
+    }
+}
+
+extension Color {
+    /// Parse `#RRGGBB` / `RRGGBB` (the shape `Project.colorHex` stores). Returns nil
+    /// on anything malformed so the caller falls back to the auto palette.
+    init?(hex: String) {
+        var s = hex.trimmingCharacters(in: .whitespaces)
+        if s.hasPrefix("#") { s.removeFirst() }
+        guard s.count == 6, let v = UInt32(s, radix: 16) else { return nil }
+        self = Color(red: Double((v >> 16) & 0xFF) / 255,
+                     green: Double((v >> 8) & 0xFF) / 255,
+                     blue: Double(v & 0xFF) / 255)
     }
 }
 
