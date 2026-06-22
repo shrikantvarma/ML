@@ -180,6 +180,45 @@ final class ChromeProfilesTests: XCTestCase {
     }
 }
 
+// MARK: - BrowserLauncher (U3 / KTD3, KTD4, KTD8)
+
+final class BrowserLauncherTests: XCTestCase {
+    func testArgumentsSingleURL() {
+        XCTAssertEqual(
+            ChromeCommand.arguments(profileFolder: "Default", urls: ["https://x.com"]),
+            ["-na", "Google Chrome", "--args", "--new-window", "--profile-directory=Default", "https://x.com"])
+    }
+
+    func testArgumentsMultipleURLsPreserveOrder() {
+        let args = ChromeCommand.arguments(profileFolder: "Profile 3",
+                                           urls: ["https://a.com", "https://b.com", "https://c.com"])
+        XCTAssertEqual(Array(args.suffix(3)), ["https://a.com", "https://b.com", "https://c.com"])
+        XCTAssertEqual(args[3], "--new-window")
+    }
+
+    func testProfileFolderWithSpaceIsOneToken() {
+        let args = ChromeCommand.arguments(profileFolder: "Profile 3", urls: ["https://x.com"])
+        XCTAssertTrue(args.contains("--profile-directory=Profile 3"),
+                      "folder with a space must be a single argv token, not split")
+    }
+
+    func testArgumentsEmptyURLs() {
+        XCTAssertEqual(ChromeCommand.arguments(profileFolder: "Default", urls: []),
+                       ["-na", "Google Chrome", "--args", "--new-window", "--profile-directory=Default"])
+    }
+
+    func testIsAllowedScheme() {
+        XCTAssertTrue(LinkURL.isAllowed("https://x.com"))
+        XCTAssertTrue(LinkURL.isAllowed("http://x.com"))
+        XCTAssertTrue(LinkURL.isAllowed("HTTPS://x.com"))
+        XCTAssertFalse(LinkURL.isAllowed("file:///etc/hosts"))
+        XCTAssertFalse(LinkURL.isAllowed("javascript:alert(1)"))
+        XCTAssertFalse(LinkURL.isAllowed("x-apple.systempreferences://x"))
+        XCTAssertFalse(LinkURL.isAllowed("x.com"))
+        XCTAssertFalse(LinkURL.isAllowed(""))
+    }
+}
+
 // MARK: - Key code mapping (U4)
 
 final class KeyCodeTests: XCTestCase {
