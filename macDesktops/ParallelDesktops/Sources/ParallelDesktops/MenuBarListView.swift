@@ -125,13 +125,20 @@ struct MenuBarListView: View {
             }
             .buttonStyle(.plain)
 
-            // Count badge: number of links, "—" when none.
-            Text(links.isEmpty ? "—" : "\(links.count)")
-                .font(.system(size: 10.5, weight: .medium))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 6).padding(.vertical, 1)
-                .background(Capsule().fill(Palette.badge))
-                .help(links.isEmpty ? "No links" : "\(links.count) link\(links.count == 1 ? "" : "s")")
+            // Count badge: a soft pill with the number; a faint dash when none.
+            if links.isEmpty {
+                Text("—")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(Color.secondary.opacity(0.45))
+                    .help("No links")
+            } else {
+                Text("\(links.count)")
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6).padding(.vertical, 1)
+                    .background(Capsule().fill(Palette.badge))
+                    .help("\(links.count) link\(links.count == 1 ? "" : "s")")
+            }
 
             // Chevron is the SOLE expand/collapse control (non-interactive when empty).
             Button { toggleExpanded(project.id) } label: {
@@ -173,10 +180,14 @@ struct MenuBarListView: View {
                         Divider()
                         Button("Delete", role: .destructive) { model.delete(project) }
                     } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
-                .menuStyle(.borderlessButton)
-                .frame(width: 28)
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .frame(width: 22)
             }
             .padding(.horizontal, 7).padding(.vertical, 5)
             .background(
@@ -287,13 +298,26 @@ struct MenuBarListView: View {
         }
     }
 
-    /// A stable, brand-ish color for a link's favicon square, derived from its host
-    /// (no network fetch in v1 — real favicons are deferred).
+    /// A brand-ish color for a link's favicon square (no network fetch in v1 — real
+    /// favicons are deferred). Known hosts get their brand color; everything else gets
+    /// a vivid, stable hue from the host.
     private func faviconColor(_ link: ParallelDesktopsCore.Link) -> Color {
-        let host = URL(string: link.url)?.host ?? link.url
+        let host = (URL(string: link.url)?.host ?? link.url).lowercased()
+        let brands: [(String, Color)] = [
+            ("mail.google",     Color(red: 0.92, green: 0.26, blue: 0.21)),  // Gmail red
+            ("calendar.google", Color(red: 0.10, green: 0.45, blue: 0.91)),  // Calendar blue
+            ("google",          Color(red: 0.26, green: 0.52, blue: 0.96)),
+            ("linkedin",        Color(red: 0.04, green: 0.40, blue: 0.76)),
+            ("github",          Color(red: 0.16, green: 0.18, blue: 0.20)),
+            ("notion",          Color(red: 0.10, green: 0.10, blue: 0.10)),
+            ("slack",           Color(red: 0.29, green: 0.07, blue: 0.39)),
+            ("figma",           Color(red: 0.95, green: 0.32, blue: 0.20)),
+            ("intercom",        Color(red: 0.11, green: 0.45, blue: 0.95)),
+        ]
+        for (key, color) in brands where host.contains(key) { return color }
         var hash = 5381
         for byte in host.utf8 { hash = (hash &* 33) &+ Int(byte) }
-        return Color(hue: Double(abs(hash) % 360) / 360.0, saturation: 0.55, brightness: 0.80)
+        return Color(hue: Double(abs(hash) % 360) / 360.0, saturation: 0.72, brightness: 0.90)
     }
 
     private func toggleExpanded(_ id: UUID) {
