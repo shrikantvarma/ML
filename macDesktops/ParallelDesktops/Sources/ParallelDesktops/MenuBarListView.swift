@@ -17,6 +17,18 @@ struct MenuBarListView: View {
     @State private var addingLinkID: UUID?
     @State private var newLinkURL = ""
     @State private var newLinkTitle = ""
+    /// Hover tracking for the mock's hover tints (rows, links, "Open all").
+    @State private var hoveredRowID: UUID?
+    @State private var hoveredLinkID: UUID?
+    @State private var hoveredOpenAllID: UUID?
+
+    /// Palette carried from the mock (opacity-based so it adapts to light/dark).
+    private enum Palette {
+        static let accentSoft = Color.accentColor.opacity(0.15)
+        static let hover = Color.primary.opacity(0.06)
+        static let rail = Color.primary.opacity(0.12)
+        static let badge = Color.primary.opacity(0.10)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -29,7 +41,9 @@ struct MenuBarListView: View {
                     .font(.callout).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-                ForEach(model.projects) { project in projectRow(project) }
+                VStack(alignment: .leading, spacing: 1) {
+                    ForEach(model.projects) { project in projectRow(project) }
+                }
             }
 
             Divider()
@@ -66,58 +80,73 @@ struct MenuBarListView: View {
 
     @ViewBuilder
     private func projectRow(_ project: Project) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 6) {
-                if renamingID == project.id {
-                    TextField("Name", text: $renameText, onCommit: {
-                        model.rename(project, to: renameText); renamingID = nil
-                    })
-                    .textFieldStyle(.roundedBorder)
-                } else {
-                    let isCurrent = model.currentProject?.id == project.id
-                    let links = project.blueprint.links
+        VStack(alignment: .leading, spacing: 2) {
+            if renamingID == project.id {
+                TextField("Name", text: $renameText, onCommit: {
+                    model.rename(project, to: renameText); renamingID = nil
+                })
+                .textFieldStyle(.roundedBorder)
+            } else {
+                projectRowMain(project)
+            }
 
-                    Button { model.enter(project) } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: isCurrent ? "largecircle.fill.circle" : "circle")
-                                .font(.caption2)
-                                .foregroundStyle(isCurrent ? Color.accentColor : Color.secondary.opacity(0.35))
-                                .help(isCurrent ? "You're on this desktop" : "")
-                            Text(project.emoji ?? "🗂").frame(width: 20)
-                            Text(project.name).fontWeight(isCurrent ? .semibold : .regular)
-                            Spacer()
-                            if project.drifted {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundStyle(.yellow)
-                                    .help("This desktop moved — Recalibrate")
-                            }
-                        }
-                        .contentShape(Rectangle())
+            if addingLinkID == project.id {
+                addLinkForm(project)
+            }
+            if renamingID != project.id && addingLinkID != project.id && expandedIDs.contains(project.id) {
+                linksBlock(project)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func projectRowMain(_ project: Project) -> some View {
+        let isCurrent = model.currentProject?.id == project.id
+        let links = project.blueprint.links
+        let hovered = hoveredRowID == project.id
+
+        HStack(spacing: 6) {
+            Button { model.enter(project) } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: isCurrent ? "largecircle.fill.circle" : "circle")
+                        .font(.caption2)
+                        .foregroundStyle(isCurrent ? Color.accentColor : Color.secondary.opacity(0.35))
+                        .help(isCurrent ? "You're on this desktop" : "")
+                    Text(project.emoji ?? "🗂").frame(width: 20)
+                    Text(project.name).fontWeight(isCurrent ? .semibold : .regular)
+                    Spacer()
+                    if project.drifted {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.yellow)
+                            .help("This desktop moved — Recalibrate")
                     }
-                    .buttonStyle(.plain)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
 
-                    // Count badge: number of links, "—" when none.
-                    Text(links.isEmpty ? "—" : "\(links.count)")
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6).padding(.vertical, 1)
-                        .background(Capsule().fill(Color.secondary.opacity(0.15)))
-                        .help(links.isEmpty ? "No links" : "\(links.count) link\(links.count == 1 ? "" : "s")")
+            // Count badge: number of links, "—" when none.
+            Text(links.isEmpty ? "—" : "\(links.count)")
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 6).padding(.vertical, 1)
+                .background(Capsule().fill(Palette.badge))
+                .help(links.isEmpty ? "No links" : "\(links.count) link\(links.count == 1 ? "" : "s")")
 
-                    // Chevron is the SOLE expand/collapse control (non-interactive when empty).
-                    Button { toggleExpanded(project.id) } label: {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 9, weight: .semibold))
-                            .rotationEffect(.degrees(expandedIDs.contains(project.id) ? 90 : 0))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 14, height: 14)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(links.isEmpty)
-                    .opacity(links.isEmpty ? 0.25 : 1)
+            // Chevron is the SOLE expand/collapse control (non-interactive when empty).
+            Button { toggleExpanded(project.id) } label: {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9, weight: .semibold))
+                    .rotationEffect(.degrees(expandedIDs.contains(project.id) ? 90 : 0))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 14, height: 14)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(links.isEmpty)
+            .opacity(links.isEmpty ? 0.25 : 1)
 
-                    Menu {
+            Menu {
                         Button("Bring up here") { model.bringUpApps(project) }
                         Button("Add link…") { beginAddLink(project) }
                         if !model.chromeProfiles.isEmpty {
@@ -146,83 +175,125 @@ struct MenuBarListView: View {
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
-                    .menuStyle(.borderlessButton)
-                    .frame(width: 28)
-                }
+                .menuStyle(.borderlessButton)
+                .frame(width: 28)
             }
-
-            if addingLinkID == project.id {
-                addLinkForm(project)
+            .padding(.horizontal, 7).padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: 7)
+                    .fill(isCurrent ? Palette.accentSoft : (hovered ? Palette.hover : Color.clear))
+            )
+            .onHover { inside in
+                hoveredRowID = inside ? project.id : (hoveredRowID == project.id ? nil : hoveredRowID)
             }
-            if renamingID != project.id && addingLinkID != project.id && expandedIDs.contains(project.id) {
-                linksBlock(project)
-            }
-        }
     }
 
     /// Inline paste-URL form (U6): URL gated to http/https, title auto-fills from the
-    /// host (editable). Duplicates accepted silently in v1.
+    /// host (editable). Duplicates accepted silently in v1. Styled as a small card.
     @ViewBuilder
     private func addLinkForm(_ project: Project) -> some View {
         let trimmed = newLinkURL.trimmingCharacters(in: .whitespaces)
         let valid = LinkURL.isAllowed(trimmed)
-        VStack(alignment: .leading, spacing: 4) {
-            TextField("https://…", text: $newLinkURL)
-                .textFieldStyle(.roundedBorder)
-                .onChange(of: newLinkURL) { _, url in
-                    // Auto-seed the title from the host while it's still untouched.
-                    if newLinkTitle.isEmpty, let host = URL(string: url.trimmingCharacters(in: .whitespaces))?.host {
-                        newLinkTitle = host
+        VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("URL").font(.system(size: 11)).foregroundStyle(.secondary)
+                TextField("https://…", text: $newLinkURL)
+                    .textFieldStyle(.roundedBorder)
+                    .onChange(of: newLinkURL) { _, url in
+                        // Auto-seed the title from the host while it's still untouched.
+                        if newLinkTitle.isEmpty, let host = URL(string: url.trimmingCharacters(in: .whitespaces))?.host {
+                            newLinkTitle = host
+                        }
                     }
-                }
-                .onSubmit { if valid { commitAddLink(project) } }
-            TextField("Title", text: $newLinkTitle)
-                .textFieldStyle(.roundedBorder)
-            HStack {
-                if !trimmed.isEmpty && !valid {
-                    Text("Enter a URL starting with https://")
-                        .font(.caption2).foregroundStyle(.red)
-                }
+                    .onSubmit { if valid { commitAddLink(project) } }
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Title").font(.system(size: 11)).foregroundStyle(.secondary)
+                TextField("Title", text: $newLinkTitle)
+                    .textFieldStyle(.roundedBorder)
+            }
+            if !trimmed.isEmpty && !valid {
+                Text("Enter a URL starting with https://")
+                    .font(.caption2).foregroundStyle(.red)
+            }
+            HStack(spacing: 8) {
                 Spacer()
                 Button("Cancel") { cancelAddLink() }
-                Button("Add") { commitAddLink(project) }.disabled(!valid)
+                    .buttonStyle(.bordered).controlSize(.small)
+                Button("Add") { commitAddLink(project) }
+                    .buttonStyle(.borderedProminent).controlSize(.small).disabled(!valid)
             }
         }
-        .padding(.leading, 26)
-        .padding(.bottom, 2)
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Palette.hover))
+        .padding(.leading, 24)
+        .padding(.vertical, 2)
     }
 
     /// The inline links revealed under an expanded project row (U5).
     @ViewBuilder
     private func linksBlock(_ project: Project) -> some View {
         let links = project.blueprint.links
-        VStack(alignment: .leading, spacing: 3) {
-            if links.isEmpty {
-                Text("No links yet — add one with ••• ▸ Add link…")
-                    .font(.caption2).foregroundStyle(.secondary)
-            } else {
-                ForEach(links) { link in
-                    Button { model.openLink(link, in: project) } label: {
+        if links.isEmpty {
+            Text("No links yet — add one with ••• ▸ Add link…")
+                .font(.caption2).foregroundStyle(.secondary)
+                .padding(.leading, 26).padding(.bottom, 2)
+        } else {
+            HStack(alignment: .top, spacing: 8) {
+                // The mock's indent rail down the inline links.
+                RoundedRectangle(cornerRadius: 1).fill(Palette.rail).frame(width: 2)
+                VStack(alignment: .leading, spacing: 1) {
+                    ForEach(links) { link in
+                        Button { model.openLink(link, in: project) } label: {
+                            HStack(spacing: 8) {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(faviconColor(link))
+                                    .frame(width: 14, height: 14)
+                                Text(link.title.isEmpty ? link.url : link.title)
+                                    .font(.callout).lineLimit(1)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 7).padding(.vertical, 4)
+                            .background(RoundedRectangle(cornerRadius: 6)
+                                .fill(hoveredLinkID == link.id ? Palette.hover : Color.clear))
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .onHover { inside in
+                            hoveredLinkID = inside ? link.id : (hoveredLinkID == link.id ? nil : hoveredLinkID)
+                        }
+                        .help(link.url)
+                    }
+                    Button { model.openLinks(project) } label: {
                         HStack(spacing: 7) {
-                            Circle().fill(Color.accentColor).frame(width: 6, height: 6)
-                            Text(link.title.isEmpty ? link.url : link.title)
-                                .font(.callout).lineLimit(1)
+                            Image(systemName: "rectangle.stack.badge.play").font(.caption)
+                            Text("Open all here").font(.callout.weight(.semibold))
                             Spacer()
                         }
+                        .foregroundStyle(Color.accentColor)
+                        .padding(.horizontal, 7).padding(.vertical, 4)
+                        .background(RoundedRectangle(cornerRadius: 6)
+                            .fill(hoveredOpenAllID == project.id ? Palette.accentSoft : Color.clear))
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .help(link.url)
+                    .onHover { inside in
+                        hoveredOpenAllID = inside ? project.id : (hoveredOpenAllID == project.id ? nil : hoveredOpenAllID)
+                    }
                 }
-                Button { model.openLinks(project) } label: {
-                    Text("Open all here").font(.caption.weight(.medium))
-                        .foregroundStyle(Color.accentColor)
-                }
-                .buttonStyle(.plain)
             }
+            .padding(.leading, 24)
+            .padding(.bottom, 3)
         }
-        .padding(.leading, 26)
-        .padding(.bottom, 2)
+    }
+
+    /// A stable, brand-ish color for a link's favicon square, derived from its host
+    /// (no network fetch in v1 — real favicons are deferred).
+    private func faviconColor(_ link: ParallelDesktopsCore.Link) -> Color {
+        let host = URL(string: link.url)?.host ?? link.url
+        var hash = 5381
+        for byte in host.utf8 { hash = (hash &* 33) &+ Int(byte) }
+        return Color(hue: Double(abs(hash) % 360) / 360.0, saturation: 0.55, brightness: 0.80)
     }
 
     private func toggleExpanded(_ id: UUID) {
