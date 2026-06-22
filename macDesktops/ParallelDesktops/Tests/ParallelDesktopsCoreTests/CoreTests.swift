@@ -14,10 +14,13 @@ final class FakeSpaces: SpacesProvider {
 
 final class FakePoster: KeyPosting {
     var posted: [Int] = []
+    // Optional hook to simulate the Space landing after a key post, so success-path
+    // tests can start on a *different* Space and have the post drive the landing —
+    // rather than relying on current == target (which the engine now short-circuits).
+    var onPost: (() -> Void)?
     func postControlNumber(_ n: Int) {
         posted.append(n)
-        // Simulate the landing for the success path: nothing here; the test's
-        // FakeSpaces.current already reflects the destination when expected.
+        onPost?()
     }
 }
 
@@ -57,10 +60,19 @@ final class SwitchEngineTests: XCTestCase {
     }
 
     func testSwitchedResolvesPostsAndVerifies() async {
-        let spaces = FakeSpaces(ordered: ["A", "B", "C"], current: "B") // already landed
+        let spaces = FakeSpaces(ordered: ["A", "B", "C"], current: "A") // a switch is needed
         let poster = FakePoster()
+        poster.onPost = { spaces.current = "B" } // the key post lands us on B
         let result = await engine(spaces, poster).switch(toSpaceUUID: "B")
         XCTAssertEqual(poster.posted, [2])
+        if case .switched = result {} else { XCTFail("expected .switched, got \(result)") }
+    }
+
+    func testAlreadyOnTargetShortCircuitsWithoutPosting() async {
+        let spaces = FakeSpaces(ordered: ["A", "B", "C"], current: "B") // already there
+        let poster = FakePoster()
+        let result = await engine(spaces, poster).switch(toSpaceUUID: "B")
+        XCTAssertTrue(poster.posted.isEmpty, "no key should be posted when already on target")
         if case .switched = result {} else { XCTFail("expected .switched, got \(result)") }
     }
 
