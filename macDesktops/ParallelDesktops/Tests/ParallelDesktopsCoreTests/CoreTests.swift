@@ -125,6 +125,61 @@ final class LaunchTests: XCTestCase {
     }
 }
 
+// MARK: - ChromeProfiles (U2 / KTD6, KTD9)
+
+final class ChromeProfilesTests: XCTestCase {
+    private func localState(_ infoCache: String) -> Data {
+        #"{ "profile": { "info_cache": \#(infoCache) } }"#.data(using: .utf8)!
+    }
+
+    func testParsesFolderAndDisplayNameIncludingMismatch() {
+        // Folder "Default" displayed as "Personal" — the real-world mismatch (KTD6).
+        let data = localState(#"{ "Default": { "name": "Personal" }, "Profile 3": { "name": "Work" } }"#)
+        let profiles = ChromeProfiles.parse(localStateJSON: data)
+        XCTAssertEqual(profiles, [ChromeProfile(folder: "Default", displayName: "Personal"),
+                                  ChromeProfile(folder: "Profile 3", displayName: "Work")])
+    }
+
+    func testStableOrderDefaultFirstThenNumeric() {
+        let data = localState(#"{ "Profile 10": { "name": "J" }, "Profile 2": { "name": "B" }, "Default": { "name": "A" } }"#)
+        XCTAssertEqual(ChromeProfiles.parse(localStateJSON: data).map(\.folder),
+                       ["Default", "Profile 2", "Profile 10"])
+    }
+
+    func testTwoProfilesShareDisplayName() {
+        let data = localState(#"{ "Default": { "name": "Shrikant" }, "Profile 1": { "name": "Shrikant" } }"#)
+        let profiles = ChromeProfiles.parse(localStateJSON: data)
+        XCTAssertEqual(profiles.count, 2)
+        XCTAssertEqual(Set(profiles.map(\.folder)), ["Default", "Profile 1"])
+    }
+
+    func testFolderPatternGuardDropsInternalAndPathLike() {
+        let data = localState(#"{ "Default": { "name": "A" }, "System Profile": { "name": "Sys" }, "../evil": { "name": "X" }, "Guest Profile": { "name": "G" } }"#)
+        XCTAssertEqual(ChromeProfiles.parse(localStateJSON: data).map(\.folder), ["Default"])
+    }
+
+    func testMissingNameFallsBackToFolder() {
+        let data = localState(#"{ "Profile 1": { } }"#)
+        XCTAssertEqual(ChromeProfiles.parse(localStateJSON: data),
+                       [ChromeProfile(folder: "Profile 1", displayName: "Profile 1")])
+    }
+
+    func testMalformedAndEmptyYieldEmpty() {
+        XCTAssertEqual(ChromeProfiles.parse(localStateJSON: Data()), [])
+        XCTAssertEqual(ChromeProfiles.parse(localStateJSON: "not json".data(using: .utf8)!), [])
+        XCTAssertEqual(ChromeProfiles.parse(localStateJSON: #"{ "profile": {} }"#.data(using: .utf8)!), [])
+    }
+
+    func testIsValidFolder() {
+        XCTAssertTrue(ChromeProfiles.isValidFolder("Default"))
+        XCTAssertTrue(ChromeProfiles.isValidFolder("Profile 1"))
+        XCTAssertFalse(ChromeProfiles.isValidFolder("Profile 0"))
+        XCTAssertFalse(ChromeProfiles.isValidFolder("Profile X"))
+        XCTAssertFalse(ChromeProfiles.isValidFolder("System Profile"))
+        XCTAssertFalse(ChromeProfiles.isValidFolder("../evil"))
+    }
+}
+
 // MARK: - Key code mapping (U4)
 
 final class KeyCodeTests: XCTestCase {
