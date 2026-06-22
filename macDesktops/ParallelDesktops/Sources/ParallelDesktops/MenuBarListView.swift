@@ -115,7 +115,15 @@ struct MenuBarListView: View {
                     ZStack {
                         RoundedRectangle(cornerRadius: 6)
                             .fill(projectColor(project).opacity(0.18))
-                        Text(project.emoji ?? "🗂").font(.system(size: 13))
+                        if let emoji = project.emoji, !emoji.isEmpty {
+                            Text(emoji).font(.system(size: 13))
+                        } else {
+                            // Auto-assigned distinct glyph, tinted to the project color
+                            // (prototype — a picker will let you choose later).
+                            Image(systemName: projectIcon(project))
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(projectColor(project))
+                        }
                     }
                     .frame(width: 22, height: 22)
                     Text(project.name).fontWeight(isCurrent ? .semibold : .regular)
@@ -314,6 +322,22 @@ struct MenuBarListView: View {
         Color(red: 0.85, green: 0.62, blue: 0.13),  // gold
         Color(red: 0.40, green: 0.58, blue: 0.22),  // olive
     ]
+
+    /// Curated identity glyphs — distinct, recognizable, "project-y".
+    private static let projectIcons: [String] = [
+        "folder.fill", "bubble.left.fill", "cart.fill", "hammer.fill",
+        "pencil", "chart.bar.fill", "paperplane.fill", "paintbrush.fill",
+        "briefcase.fill", "flask.fill", "megaphone.fill", "target",
+        "doc.text.fill", "lightbulb.fill", "calendar", "star.fill",
+    ]
+
+    /// Auto-assigned glyph for a project (stable by id). Prototype until a picker
+    /// writes an explicit choice.
+    private func projectIcon(_ project: Project) -> String {
+        var hash = 5381
+        for byte in project.id.uuidString.utf8 { hash = (hash &* 33) &+ Int(byte) }
+        return Self.projectIcons[abs(hash) % Self.projectIcons.count]
+    }
 
     /// A project's identity color: its explicit `colorHex` when set (the future
     /// "Set color…" override), else a stable pick from the palette by project id.
