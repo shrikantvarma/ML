@@ -327,8 +327,13 @@ final class AppModel: ObservableObject {
         }
 
         if let folder = plan.profileFolder {
-            return urlOpener.openChrome(profileFolder: folder, urls: plan.urls)
-                ? .opened(plan.urls.count, bounced: false) : .chromeFailed
+            let urls = plan.urls
+            // Run the blocking Process (waitUntilExit) off the main actor so the
+            // menu-bar UI never freezes if `open`/Chrome is slow.
+            let ok = await Task.detached { [urlOpener] in
+                urlOpener.openChrome(profileFolder: folder, urls: urls)
+            }.value
+            return ok ? .opened(urls.count, bounced: false) : .chromeFailed
         } else {
             var opened = 0
             for url in plan.urls where urlOpener.openDefault(url: url) { opened += 1 }

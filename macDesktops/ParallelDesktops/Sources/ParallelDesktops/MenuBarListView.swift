@@ -12,6 +12,7 @@ struct MenuBarListView: View {
     /// Which project rows show their links inline. The current project auto-expands
     /// (seeded onAppear); others start collapsed to keep the list short (U5).
     @State private var expandedIDs: Set<UUID> = []
+    @State private var didSeedExpansion = false
     /// Inline "Add link" form state (U6), mirroring the rename-field pattern.
     @State private var addingLinkID: UUID?
     @State private var newLinkURL = ""
@@ -55,7 +56,11 @@ struct MenuBarListView: View {
         .frame(width: 320)
         .onAppear {
             model.refreshPermissions()   // re-check whenever the popover opens
-            if let cur = model.currentProject?.id { expandedIDs.insert(cur) }  // auto-expand current
+            // Auto-expand the current project once — re-seeding every open would
+            // re-expand a row the user deliberately collapsed.
+            if !didSeedExpansion, let cur = model.currentProject?.id {
+                expandedIDs.insert(cur); didSeedExpansion = true
+            }
         }
     }
 

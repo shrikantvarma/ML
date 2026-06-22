@@ -41,6 +41,7 @@ public struct SystemURLOpener: URLOpening {
     public init() {}
 
     public func openChrome(profileFolder: String, urls: [String]) -> Bool {
+        guard ChromeProfiles.isValidFolder(profileFolder) else { return false }  // last-line KTD9 guard
         let allowed = urls.filter(LinkURL.isAllowed)
         guard !allowed.isEmpty else { return false }
         let proc = Process()

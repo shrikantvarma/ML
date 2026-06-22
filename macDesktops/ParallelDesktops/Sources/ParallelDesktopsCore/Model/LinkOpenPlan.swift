@@ -17,10 +17,14 @@ public struct LinkOpenPlan: Equatable {
 
     /// Build the plan from the live Space and the project's settings. `urls` is the
     /// caller's selection (all links, or one) — filtered to allowed schemes (KTD8).
+    /// An invalid/path-like `chromeProfileFolder` (e.g. from a hand-edited or synced
+    /// projects.json) is rejected here (KTD9) and falls back to the default browser,
+    /// so it can never reach `--profile-directory`.
     public static func make(project: Project, currentSpaceUUID: String?, urls: [String]) -> LinkOpenPlan {
-        LinkOpenPlan(
+        let folder = project.chromeProfileFolder.flatMap { ChromeProfiles.isValidFolder($0) ? $0 : nil }
+        return LinkOpenPlan(
             needsSwitch: currentSpaceUUID != project.spaceUUID,
-            profileFolder: project.chromeProfileFolder,
+            profileFolder: folder,
             urls: urls.filter(LinkURL.isAllowed)
         )
     }

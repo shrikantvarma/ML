@@ -260,6 +260,19 @@ final class LinkOpenPlanTests: XCTestCase {
         let p = project(space: "S1", profile: nil, links: [])
         XCTAssertTrue(LinkOpenPlan.make(project: p, currentSpaceUUID: "S1", urls: []).urls.isEmpty)
     }
+
+    func testValidProfileFolderKept() {
+        let p = project(space: "S1", profile: "Profile 3", links: ["https://x.com"])
+        XCTAssertEqual(LinkOpenPlan.make(project: p, currentSpaceUUID: "S1", urls: ["https://x.com"]).profileFolder,
+                       "Profile 3")
+    }
+
+    func testInvalidProfileFolderRejectedToDefault() {
+        // A hand-edited/synced path-like folder must never reach --profile-directory (KTD9).
+        let p = project(space: "S1", profile: "../../evil", links: ["https://x.com"])
+        XCTAssertNil(LinkOpenPlan.make(project: p, currentSpaceUUID: "S1", urls: ["https://x.com"]).profileFolder,
+                     "invalid folder falls back to the default browser path")
+    }
 }
 
 // MARK: - Key code mapping (U4)
