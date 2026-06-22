@@ -12,6 +12,10 @@ struct MenuBarListView: View {
     /// Which project rows show their links inline. The current project auto-expands
     /// (seeded onAppear); others start collapsed to keep the list short (U5).
     @State private var expandedIDs: Set<UUID> = []
+    /// Inline "Add link" form state (U6), mirroring the rename-field pattern.
+    @State private var addingLinkID: UUID?
+    @State private var newLinkURL = ""
+    @State private var newLinkTitle = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -109,7 +113,23 @@ struct MenuBarListView: View {
                     .opacity(links.isEmpty ? 0.25 : 1)
 
                     Menu {
-                        Button("Bring up apps here") { model.bringUpApps(project) }
+                        Button("Bring up here") { model.bringUpApps(project) }
+                        Button("Add link…") { beginAddLink(project) }
+                        if !model.chromeProfiles.isEmpty {
+                            Menu("Open links in profile…") {
+                                Button("System default browser") { model.setChromeProfile(nil, for: project) }
+                                Divider()
+                                ForEach(model.chromeProfiles) { prof in
+                                    Button { model.setChromeProfile(prof.folder, for: project) } label: {
+                                        if project.chromeProfileFolder == prof.folder {
+                                            Label("\(prof.displayName) — \(prof.folder)", systemImage: "checkmark")
+                                        } else {
+                                            Text("\(prof.displayName) — \(prof.folder)")
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         Divider()
                         Button("Rename") { renameText = project.name; renamingID = project.id }
                         Button("Update apps from this desktop") { model.updateApps(project) }
@@ -126,10 +146,45 @@ struct MenuBarListView: View {
                 }
             }
 
-            if renamingID != project.id && expandedIDs.contains(project.id) {
+            if addingLinkID == project.id {
+                addLinkForm(project)
+            }
+            if renamingID != project.id && addingLinkID != project.id && expandedIDs.contains(project.id) {
                 linksBlock(project)
             }
         }
+    }
+
+    /// Inline paste-URL form (U6): URL gated to http/https, title auto-fills from the
+    /// host (editable). Duplicates accepted silently in v1.
+    @ViewBuilder
+    private func addLinkForm(_ project: Project) -> some View {
+        let trimmed = newLinkURL.trimmingCharacters(in: .whitespaces)
+        let valid = LinkURL.isAllowed(trimmed)
+        VStack(alignment: .leading, spacing: 4) {
+            TextField("https://…", text: $newLinkURL)
+                .textFieldStyle(.roundedBorder)
+                .onChange(of: newLinkURL) { _, url in
+                    // Auto-seed the title from the host while it's still untouched.
+                    if newLinkTitle.isEmpty, let host = URL(string: url.trimmingCharacters(in: .whitespaces))?.host {
+                        newLinkTitle = host
+                    }
+                }
+                .onSubmit { if valid { commitAddLink(project) } }
+            TextField("Title", text: $newLinkTitle)
+                .textFieldStyle(.roundedBorder)
+            HStack {
+                if !trimmed.isEmpty && !valid {
+                    Text("Enter a URL starting with https://")
+                        .font(.caption2).foregroundStyle(.red)
+                }
+                Spacer()
+                Button("Cancel") { cancelAddLink() }
+                Button("Add") { commitAddLink(project) }.disabled(!valid)
+            }
+        }
+        .padding(.leading, 26)
+        .padding(.bottom, 2)
     }
 
     /// The inline links revealed under an expanded project row (U5).
@@ -167,6 +222,21 @@ struct MenuBarListView: View {
 
     private func toggleExpanded(_ id: UUID) {
         if expandedIDs.contains(id) { expandedIDs.remove(id) } else { expandedIDs.insert(id) }
+    }
+
+    private func beginAddLink(_ project: Project) {
+        addingLinkID = project.id; newLinkURL = ""; newLinkTitle = ""
+        renamingID = nil
+    }
+
+    private func commitAddLink(_ project: Project) {
+        model.addLink(newLinkURL, title: newLinkTitle, to: project)
+        expandedIDs.insert(project.id)   // reveal the freshly added link
+        cancelAddLink()
+    }
+
+    private func cancelAddLink() {
+        addingLinkID = nil; newLinkURL = ""; newLinkTitle = ""
     }
 
     private func save() {

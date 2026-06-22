@@ -53,6 +53,7 @@ final class AppModel: ObservableObject {
         registerObservers()
         recomputeDrift()
         registerSearchHotKey()
+        loadChromeProfiles()
         DispatchQueue.main.async { [weak self] in self?.maybeShowMorningRecap() }
     }
 
@@ -212,6 +213,45 @@ final class AppModel: ObservableObject {
     func delete(_ project: Project) {
         store.remove(id: project.id); projects = store.projects; recomputeCurrent()
         status = "Deleted “\(project.name)”."
+    }
+
+    // MARK: Links authoring (U6)
+
+    /// Available Chrome profiles for the "Open links in profile…" picker. Loaded off
+    /// the main thread and cached (empty when Chrome isn't installed).
+    @Published var chromeProfiles: [ChromeProfile] = []
+
+    private func loadChromeProfiles() {
+        Task.detached(priority: .utility) {
+            let profiles = ChromeProfiles.load()
+            await MainActor.run { [weak self] in self?.chromeProfiles = profiles }
+        }
+    }
+
+    /// Append a link to a project. URL is gated to http/https (KTD8); title defaults
+    /// to the URL host when the user leaves it blank.
+    func addLink(_ rawURL: String, title rawTitle: String, to project: Project) {
+        let url = rawURL.trimmingCharacters(in: .whitespaces)
+        guard LinkURL.isAllowed(url), var p = projects.first(where: { $0.id == project.id }) else {
+            status = "Enter a URL starting with http:// or https://"; return
+        }
+        let trimmedTitle = rawTitle.trimmingCharacters(in: .whitespaces)
+        let title = trimmedTitle.isEmpty ? (URL(string: url)?.host ?? url) : trimmedTitle
+        p.blueprint.links.append(Link(url: url, title: title))
+        store.update(p); projects = store.projects; recomputeCurrent()
+        status = "Added “\(title)” to “\(p.name)”."
+    }
+
+    /// Bind (or clear, nil = system default) the Chrome profile a project opens in.
+    func setChromeProfile(_ folder: String?, for project: Project) {
+        guard var p = projects.first(where: { $0.id == project.id }) else { return }
+        p.chromeProfileFolder = folder
+        store.update(p); projects = store.projects; recomputeCurrent()
+        if let folder, let name = chromeProfiles.first(where: { $0.folder == folder })?.displayName {
+            status = "“\(p.name)” links open in \(name)."
+        } else {
+            status = "“\(p.name)” links open in your default browser."
+        }
     }
 
     /// Rebind a drifted project to the desktop you're currently on (U5 recalibration).
