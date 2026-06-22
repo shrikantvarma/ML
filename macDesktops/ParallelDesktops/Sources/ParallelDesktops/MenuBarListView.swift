@@ -21,6 +21,8 @@ struct MenuBarListView: View {
     @State private var hoveredRowID: UUID?
     @State private var hoveredLinkID: UUID?
     @State private var hoveredOpenAllID: UUID?
+    /// Which project row is showing the inline icon picker (U6 follow-up).
+    @State private var iconPickingID: UUID?
 
     /// Palette carried from the mock (opacity-based so it adapts to light/dark).
     private enum Palette {
@@ -90,13 +92,53 @@ struct MenuBarListView: View {
                 projectRowMain(project)
             }
 
+            if iconPickingID == project.id {
+                iconPicker(project)
+            }
             if addingLinkID == project.id {
                 addLinkForm(project)
             }
-            if renamingID != project.id && addingLinkID != project.id && expandedIDs.contains(project.id) {
+            if renamingID != project.id && addingLinkID != project.id
+                && iconPickingID != project.id && expandedIDs.contains(project.id) {
                 linksBlock(project)
             }
         }
+    }
+
+    /// Inline 8×2 grid of the curated glyphs, tinted to the project color; tap to set.
+    @ViewBuilder
+    private func iconPicker(_ project: Project) -> some View {
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 8)
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Pick an icon for \(project.name)")
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+            LazyVGrid(columns: columns, spacing: 6) {
+                ForEach(Self.projectIcons, id: \.self) { symbol in
+                    let selected = projectIcon(project) == symbol
+                    Button { model.setIcon(symbol, for: project); iconPickingID = nil } label: {
+                        Image(systemName: symbol)
+                            .font(.system(size: 13))
+                            .foregroundStyle(projectColor(project))
+                            .frame(width: 28, height: 28)
+                            .background(RoundedRectangle(cornerRadius: 6)
+                                .fill(projectColor(project).opacity(selected ? 0.28 : 0.10)))
+                            .overlay(RoundedRectangle(cornerRadius: 6)
+                                .strokeBorder(projectColor(project), lineWidth: selected ? 1.5 : 0))
+                    }
+                    .buttonStyle(.plain)
+                    .help(symbol)
+                }
+            }
+            HStack {
+                Spacer()
+                Button("Done") { iconPickingID = nil }
+                    .buttonStyle(.bordered).controlSize(.small)
+            }
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Palette.hover))
+        .padding(.leading, 24)
+        .padding(.vertical, 2)
     }
 
     @ViewBuilder
@@ -185,6 +227,10 @@ struct MenuBarListView: View {
                             }
                         }
                         Divider()
+                        Button("Set icon…") { beginPickIcon(project) }
+                        if project.iconName != nil {
+                            Button("Reset icon to auto") { model.setIcon(nil, for: project) }
+                        }
                         Button("Rename") { renameText = project.name; renamingID = project.id }
                         Button("Update apps from this desktop") { model.updateApps(project) }
                         if project.drifted {
@@ -323,17 +369,18 @@ struct MenuBarListView: View {
         Color(red: 0.40, green: 0.58, blue: 0.22),  // olive
     ]
 
-    /// Curated identity glyphs — distinct, recognizable, "project-y".
-    private static let projectIcons: [String] = [
-        "folder.fill", "bubble.left.fill", "cart.fill", "hammer.fill",
-        "pencil", "chart.bar.fill", "paperplane.fill", "paintbrush.fill",
-        "briefcase.fill", "flask.fill", "megaphone.fill", "target",
-        "doc.text.fill", "lightbulb.fill", "calendar", "star.fill",
+    /// Curated identity glyphs — distinct, recognizable, "project-y" (the picker set).
+    static let projectIcons: [String] = [
+        "folder.fill", "bubble.left.and.bubble.right.fill", "envelope.fill", "cart.fill",
+        "chart.line.uptrend.xyaxis", "hammer.fill", "chevron.left.forwardslash.chevron.right", "pencil",
+        "paintbrush.fill", "flask.fill", "books.vertical.fill", "megaphone.fill",
+        "calendar", "lightbulb.fill", "target", "star.fill",
     ]
 
-    /// Auto-assigned glyph for a project (stable by id). Prototype until a picker
-    /// writes an explicit choice.
+    /// The project's glyph: an explicit `iconName` when chosen, else a stable
+    /// auto-assignment from the curated set.
     private func projectIcon(_ project: Project) -> String {
+        if let chosen = project.iconName, !chosen.isEmpty { return chosen }
         var hash = 5381
         for byte in project.id.uuidString.utf8 { hash = (hash &* 33) &+ Int(byte) }
         return Self.projectIcons[abs(hash) % Self.projectIcons.count]
@@ -376,7 +423,12 @@ struct MenuBarListView: View {
 
     private func beginAddLink(_ project: Project) {
         addingLinkID = project.id; newLinkURL = ""; newLinkTitle = ""
-        renamingID = nil
+        renamingID = nil; iconPickingID = nil
+    }
+
+    private func beginPickIcon(_ project: Project) {
+        iconPickingID = project.id
+        renamingID = nil; addingLinkID = nil
     }
 
     private func commitAddLink(_ project: Project) {

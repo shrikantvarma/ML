@@ -80,11 +80,14 @@ public struct Project: Codable, Equatable, Identifiable {
     /// project opens links in. nil = system default browser (KTD2/KTD3). Defaulted
     /// for migration safety (KTD1).
     public var chromeProfileFolder: String?
+    /// Chosen SF Symbol name for the project's identity tile. nil = auto-assigned
+    /// from the curated set. Optional → migrates cleanly (decodeIfPresent).
+    public var iconName: String?
 
     public init(id: UUID = UUID(), name: String, emoji: String? = nil, colorHex: String? = nil,
                 spaceUUID: String, blueprint: Blueprint = Blueprint(),
                 resume: ResumeContext = ResumeContext(), drifted: Bool = false,
-                chromeProfileFolder: String? = nil) {
+                chromeProfileFolder: String? = nil, iconName: String? = nil) {
         self.id = id
         self.name = name
         self.emoji = emoji
@@ -94,5 +97,6 @@ public struct Project: Codable, Equatable, Identifiable {
         self.resume = resume
         self.drifted = drifted
         self.chromeProfileFolder = chromeProfileFolder
+        self.iconName = iconName
     }
 }

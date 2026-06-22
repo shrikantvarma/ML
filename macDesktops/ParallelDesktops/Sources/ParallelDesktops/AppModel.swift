@@ -248,6 +248,13 @@ final class AppModel: ObservableObject {
         status = "Added “\(title)” to “\(p.name)”."
     }
 
+    /// Set (or clear → auto) the project's identity icon (an SF Symbol name).
+    func setIcon(_ symbol: String?, for project: Project) {
+        guard var p = projects.first(where: { $0.id == project.id }) else { return }
+        p.iconName = symbol
+        store.update(p); projects = store.projects; recomputeCurrent()
+    }
+
     /// Bind (or clear, nil = system default) the Chrome profile a project opens in.
     func setChromeProfile(_ folder: String?, for project: Project) {
         guard var p = projects.first(where: { $0.id == project.id }) else { return }

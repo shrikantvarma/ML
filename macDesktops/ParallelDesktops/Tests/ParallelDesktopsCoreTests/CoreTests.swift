@@ -436,13 +436,14 @@ final class ProjectStoreTests: XCTestCase {
         let store = ProjectStore(url: url)
         try store.add(Project(name: "Comms", spaceUUID: "U1",
                               blueprint: Blueprint(bundleIDs: ["com.a"], links: links),
-                              chromeProfileFolder: "Profile 3"))
+                              chromeProfileFolder: "Profile 3", iconName: "megaphone.fill"))
         let reopened = ProjectStore(url: url)
         let p = try XCTUnwrap(reopened.projects.first)
         XCTAssertEqual(p.blueprint.links.map(\.url), ["https://linkedin.com", "https://gmail.com"],
                        "link order must survive the round-trip")
         XCTAssertEqual(p.blueprint.links.map(\.title), ["LinkedIn", "Gmail"])
         XCTAssertEqual(p.chromeProfileFolder, "Profile 3")
+        XCTAssertEqual(p.iconName, "megaphone.fill")
     }
 
     /// The migration guarantee (KTD1): an existing file with no `links` key (and no
