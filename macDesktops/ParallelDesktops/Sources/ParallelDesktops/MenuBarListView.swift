@@ -237,9 +237,6 @@ struct MenuBarListView: View {
                         }
                         Divider()
                         Button("Set icon…") { beginPickIcon(project) }
-                        if project.iconName != nil {
-                            Button("Reset icon to auto") { model.setIcon(nil, for: project) }
-                        }
                         Button("Rename") { renameText = project.name; renamingID = project.id }
                         Button("Update apps from this desktop") { model.updateApps(project) }
                         if project.drifted {
