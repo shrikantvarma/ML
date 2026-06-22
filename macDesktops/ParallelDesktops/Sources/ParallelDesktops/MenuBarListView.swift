@@ -165,16 +165,14 @@ struct MenuBarListView: View {
                         .font(.caption2)
                         .foregroundStyle(isCurrent ? Color.accentColor : Color.secondary.opacity(0.35))
                         .help(isCurrent ? "You're on this desktop" : "")
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(projectColor(project).opacity(0.18))
+                    Group {
                         if let emoji = project.emoji, !emoji.isEmpty {
-                            Text(emoji).font(.system(size: 13))
+                            Text(emoji).font(.system(size: 15))
                         } else {
-                            // Auto-assigned distinct glyph, tinted to the project color
-                            // (prototype — a picker will let you choose later).
+                            // Glyph tinted to the project color — identity via shape +
+                            // color, no background tile.
                             Image(systemName: projectIcon(project))
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(.system(size: 14, weight: .semibold))
                                 .foregroundStyle(projectColor(project))
                         }
                     }
