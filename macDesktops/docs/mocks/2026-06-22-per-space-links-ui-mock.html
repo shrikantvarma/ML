@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Per-Space Links — v1 UI mock</title>
+<style>
+  :root{
+    --pop:#ffffff; --ink:#1d1d1f; --muted:#86868b; --line:#e6e6e8;
+    --accent:#0a84ff; --accent-soft:#e9f2ff; --hover:#f2f2f4; --good:#1c8a3b;
+    --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --pop:#2b2b2e; --ink:#f2f2f4; --muted:#9a9a9f; --line:#3a3a3d;
+      --accent:#409cff; --accent-soft:#13314f; --hover:#37373b; --good:#5fd07d; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:var(--sans);color:var(--ink);
+    background:
+      radial-gradient(1200px 700px at 70% -10%, #3a4a6b 0%, #20242e 55%, #15171c 100%);
+    min-height:100vh;padding:34px 24px 70px}
+  /* fake menu bar */
+  .menubar{position:fixed;top:0;left:0;right:0;height:24px;background:rgba(20,22,28,.55);
+    backdrop-filter:blur(20px);display:flex;align-items:center;justify-content:flex-end;
+    gap:16px;padding:0 14px;font-size:12.5px;color:#e8e8ea;z-index:5}
+  .menubar .item{opacity:.85}
+  .menubar .ppd{font-weight:600;opacity:1;display:flex;align-items:center;gap:5px}
+  h1{color:#fff;font-size:20px;font-weight:600;margin:6px 0 2px;text-align:center}
+  .sub{color:#aeb4c2;text-align:center;margin:0 0 26px;font-size:13.5px}
+  .grid{display:flex;flex-wrap:wrap;gap:34px 30px;justify-content:center;align-items:flex-start;max-width:1180px;margin:0 auto}
+  .stage{display:flex;flex-direction:column;align-items:center;gap:10px;width:330px}
+  .cap{color:#cfd4df;font-size:12.5px;text-align:center;max-width:320px;line-height:1.4}
+  .cap b{color:#fff}
+  .tag{display:inline-block;background:rgba(255,255,255,.12);color:#fff;font-size:10.5px;
+    font-weight:700;letter-spacing:.04em;padding:2px 8px;border-radius:999px;text-transform:uppercase}
+
+  /* popover */
+  .pop{width:320px;background:var(--pop);border:.5px solid rgba(0,0,0,.18);
+    border-radius:12px;box-shadow:0 14px 44px rgba(0,0,0,.40);overflow:hidden;
+    font-size:13px}
+  .pop.menu{width:230px}
+  .pad{padding:11px 12px}
+  .title{font-weight:600;font-size:13px;margin:0 0 9px}
+  .divider{height:.5px;background:var(--line);margin:9px -12px}
+  .hint{color:var(--muted);font-size:11px;line-height:1.45;margin:7px 0 0}
+
+  /* project row */
+  .row{display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:7px;cursor:default}
+  .row:hover{background:var(--hover)}
+  .row.cur{background:var(--accent-soft)}
+  .dot{width:11px;text-align:center;color:var(--accent);font-size:11px}
+  .dot.off{color:rgba(140,140,150,.5)}
+  .emoji{width:18px;text-align:center}
+  .name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .name.cur{font-weight:600}
+  .count{font-size:10.5px;color:var(--muted);background:var(--line);border-radius:999px;
+    padding:1px 7px}
+  .chev{color:var(--muted);font-size:10px;width:12px;text-align:center}
+  .ell{color:var(--muted);width:18px;text-align:center;font-size:14px}
+
+  /* inline links */
+  .links{margin:1px 0 4px 26px;padding-left:8px;border-left:2px solid var(--line)}
+  .link{display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:6px;cursor:default}
+  .link:hover{background:var(--hover)}
+  .fav{width:14px;height:14px;border-radius:4px;flex:none}
+  .lt{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .openall{display:flex;align-items:center;gap:7px;margin-top:3px;padding:6px 7px;border-radius:6px;
+    color:var(--accent);font-weight:600;cursor:default}
+  .openall:hover{background:var(--accent-soft)}
+
+  /* save field */
+  .field{display:flex;gap:7px;align-items:center}
+  .input{flex:1;border:.5px solid var(--line);border-radius:6px;padding:5px 8px;font-size:12.5px;
+    color:var(--muted);background:transparent}
+  .btn{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:5px 11px;
+    font-size:12.5px;font-weight:600;cursor:default}
+  .btn.ghost{background:var(--hover);color:var(--ink)}
+
+  /* menu list */
+  .mi{display:flex;align-items:center;gap:9px;padding:6px 9px;border-radius:6px;cursor:default;font-size:13px}
+  .mi:hover{background:var(--accent);color:#fff}
+  .mi .ic{width:16px;text-align:center;opacity:.85}
+  .mi.sep{pointer-events:none;height:.5px;background:var(--line);margin:5px 0;padding:0;border-radius:0}
+  .mi.danger{color:#d11}
+  .mi.danger:hover{background:#d11;color:#fff}
+  .chk{margin-left:auto;color:var(--accent)}
+  .mi:hover .chk{color:#fff}
+  .ppl{width:18px;height:18px;border-radius:50%;flex:none;display:flex;align-items:center;
+    justify-content:center;color:#fff;font-size:10px;font-weight:700}
+
+  .statusline{color:var(--good);font-size:11.5px;margin-top:7px;display:flex;gap:6px;align-items:center}
+  .footernote{color:#aeb4c2;font-size:12px;text-align:center;margin-top:40px;line-height:1.6}
+  code{font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:11px;background:rgba(255,255,255,.1);
+    color:#dfe4ee;padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+<div class="menubar">
+  <span class="item">􀙇</span><span class="item">􀊨</span><span class="item">100%</span>
+  <span class="ppd">🗂 Comms ▾</span><span class="item">Tue 9:41</span>
+</div>
+
+<h1>Per-Space Links — v1 UI</h1>
+<p class="sub">Directional mock. Judge the layout & flow, not exact colors/spacing. Everything renders inside the existing menu-bar popover.</p>
+
+<div class="grid">
+
+  <!-- STAGE 1: main popover, one project expanded -->
+  <div class="stage">
+    <span class="tag">1 · Main popover</span>
+    <div class="pop">
+      <div class="pad">
+        <p class="title">Parallel Project Desktops</p>
+
+        <!-- current project, expanded -->
+        <div class="row cur">
+          <span class="dot">●</span><span class="emoji">🗂</span>
+          <span class="name cur">Comms</span>
+          <span class="count">3</span><span class="chev">⌄</span><span class="ell">⋯</span>
+        </div>
+        <div class="links">
+          <div class="link"><span class="fav" style="background:#0a66c2"></span><span class="lt">LinkedIn</span></div>
+          <div class="link"><span class="fav" style="background:#ea4335"></span><span class="lt">Gmail</span></div>
+          <div class="link"><span class="fav" style="background:#1a73e8"></span><span class="lt">Google Calendar</span></div>
+          <div class="openall"><span>􀜍</span>Open all here</div>
+        </div>
+
+        <!-- other projects, collapsed -->
+        <div class="row"><span class="dot off">○</span><span class="emoji">💰</span><span class="name">Sales</span><span class="count">4</span><span class="chev">›</span><span class="ell">⋯</span></div>
+        <div class="row"><span class="dot off">○</span><span class="emoji">🛠</span><span class="name">Build</span><span class="count">2</span><span class="chev">›</span><span class="ell">⋯</span></div>
+        <div class="row"><span class="dot off">○</span><span class="emoji">✍️</span><span class="name">Content</span><span class="count">—</span><span class="chev">›</span><span class="ell">⋯</span></div>
+
+        <div class="divider"></div>
+        <div class="field">
+          <span class="input">Save this desktop as…</span><span class="btn">Save</span>
+        </div>
+        <div class="statusline">􀁢 Opened 3 pages in Comms</div>
+      </div>
+    </div>
+    <p class="cap"><b>Inline links per project.</b> Click the chevron to expand a project's pages. A small count badge shows how many. Click a page to open just it, or <b>Open all here</b>.</p>
+  </div>
+
+  <!-- STAGE 2: ••• menu -->
+  <div class="stage">
+    <span class="tag">2 · The ⋯ menu</span>
+    <div class="pop menu">
+      <div class="pad">
+        <div class="mi"><span class="ic">􀜍</span>Bring up here <span style="margin-left:auto;color:var(--muted);font-size:11px">apps + links</span></div>
+        <div class="mi"><span class="ic">􀏵</span>Add link…</div>
+        <div class="mi"><span class="ic">􀉭</span>Open links in profile…</div>
+        <div class="mi sep"></div>
+        <div class="mi"><span class="ic">􀈎</span>Rename</div>
+        <div class="mi"><span class="ic">􀰓</span>Update apps from this desktop</div>
+        <div class="mi sep"></div>
+        <div class="mi danger"><span class="ic">􀈑</span>Delete</div>
+      </div>
+    </div>
+    <p class="cap"><b>Authoring lives in the row's ⋯ menu.</b> "Bring up here" now opens apps <i>and</i> links together. New items: <b>Add link…</b> and <b>Open links in profile…</b>.</p>
+  </div>
+
+  <!-- STAGE 3: add link -->
+  <div class="stage">
+    <span class="tag">3 · Add link</span>
+    <div class="pop">
+      <div class="pad">
+        <p class="title">Add a link to <span style="color:var(--accent)">Comms</span></p>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <span style="font-size:11px;color:var(--muted)">URL</span>
+            <span class="input" style="color:var(--ink)">https://app.intercom.com/inbox</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <span style="font-size:11px;color:var(--muted)">Title (auto-filled)</span>
+            <span class="input" style="color:var(--ink)">Intercom — Inbox</span>
+          </div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:2px">
+            <span class="btn ghost">Cancel</span><span class="btn">Add</span>
+          </div>
+        </div>
+        <p class="hint">v1 is paste-a-URL. (Snapshot "save my open tabs" comes later.)</p>
+      </div>
+    </div>
+    <p class="cap"><b>Manual add in v1.</b> Paste a URL; the title auto-fills and stays editable. No permissions needed.</p>
+  </div>
+
+  <!-- STAGE 4: profile picker -->
+  <div class="stage">
+    <span class="tag">4 · Open links in profile…</span>
+    <div class="pop menu">
+      <div class="pad">
+        <p class="title" style="padding:0 2px">Open Comms links in</p>
+        <div class="mi"><span class="ppl" style="background:#8e8e93">⌂</span>System default browser <span class="chk">✓</span></div>
+        <div class="mi sep"></div>
+        <div class="mi"><span class="ppl" style="background:#34c759">S</span>Shrikant <span style="margin-left:auto;color:var(--muted);font-size:10px">Profile 3</span></div>
+        <div class="mi"><span class="ppl" style="background:#ff9500">S</span>Shrikant (work) <span style="margin-left:auto;color:var(--muted);font-size:10px">Profile 5</span></div>
+        <div class="mi"><span class="ppl" style="background:#0a84ff">P</span>Personal <span style="margin-left:auto;color:var(--muted);font-size:10px">Default</span></div>
+      </div>
+    </div>
+    <p class="cap"><b>Per-project profile, by display name.</b> Pick which Chrome profile this project's links open in. We map name → on-disk folder under the hood. This is what makes pages land on the right desktop, in the right login.</p>
+  </div>
+
+</div>
+
+<p class="footernote">
+  Flow: click a link / "Open all" → switch to the project's Space &amp; verify → open via <code>--new-window --profile-directory=&lt;profile&gt;</code> → pages land here.<br>
+  Out of v1: tab-snapshot capture · dedupe vs open tabs · per-link profiles · auto-learn.
+</p>
+</body>
+</html>

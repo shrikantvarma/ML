@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ideation: Per-Space Important Webpages</title>
+<style>
+  :root{
+    --bg:#fbfaf8; --surface:#ffffff; --ink:#1c1b1a; --muted:#6b6660;
+    --line:#e7e3dd; --accent:#9a3b1f; --accent-soft:#f6ece6; --accent-text:#7d3019;
+    --ok:#2f6b3a; --ok-soft:#eaf3ec; --warn:#8a6d1a; --warn-soft:#f6efda;
+    --info:#2d5d86; --info-soft:#e8f0f6; --radius:10px;
+    --mono:"SFMono-Regular",ui-monospace,Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#1a1917; --surface:#222120; --ink:#ece8e2; --muted:#a39d94;
+      --line:#33312e; --accent:#e58a5f; --accent-soft:#2c241f; --accent-text:#f0a47e;
+      --ok:#8fce9a; --ok-soft:#1f2a21; --warn:#d8bd6f; --warn-soft:#2a2417;
+      --info:#8fbbe0; --info-soft:#1c2630; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    line-height:1.55;font-size:16px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:900px;margin-inline:auto;padding:48px 24px 80px}
+  header.doc{border-bottom:2px solid var(--line);padding-bottom:20px;margin-bottom:32px}
+  .eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-text);font-weight:700}
+  h1{font-size:30px;line-height:1.15;margin:8px 0 14px}
+  h2{font-size:21px;margin:40px 0 14px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+  h3{font-size:17px;margin:0 0 4px}
+  p{max-width:72ch}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .chip{display:inline-block;font-size:12px;padding:3px 10px;border-radius:999px;
+    border:1px solid var(--line);background:var(--surface);color:var(--muted);font-weight:600}
+  .chip.k{background:var(--accent-soft);color:var(--accent-text);border-color:transparent}
+  .lede{font-size:17px;color:var(--ink)}
+  .grounding{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px 22px}
+  .grounding p{margin:.5em 0}
+  ul.axes{list-style:none;padding:0;margin:0;display:grid;gap:8px}
+  ul.axes li{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 14px}
+  ul.axes b{color:var(--accent-text)}
+  .jump{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 20px;margin-bottom:24px}
+  .jump ol{margin:6px 0 0;padding-left:20px}
+  .jump a{color:var(--accent-text);text-decoration:none}
+  .jump a:hover{text-decoration:underline}
+  article.idea{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:22px 24px;margin:18px 0;scroll-margin-top:16px}
+  .idhead{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  .num{font-family:var(--mono);font-weight:700;color:var(--accent-text);background:var(--accent-soft);
+    border-radius:6px;padding:2px 9px;font-size:14px}
+  .pills{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 14px}
+  .pill{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;border:1px solid transparent}
+  .pill.axis{background:var(--accent-soft);color:var(--accent-text)}
+  .pill.conf{background:var(--ok-soft);color:var(--ok)}
+  .pill.cx{background:var(--info-soft);color:var(--info)}
+  dl{margin:0;display:grid;grid-template-columns:max-content 1fr;gap:6px 16px}
+  dt{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700;padding-top:2px}
+  dd{margin:0}
+  dd code,p code,li code{font-family:var(--mono);font-size:.86em;background:var(--accent-soft);
+    color:var(--accent-text);padding:1px 5px;border-radius:4px}
+  .basis-tag{font-family:var(--mono);font-weight:700;color:var(--accent-text)}
+  table{border-collapse:collapse;width:100%;font-size:14.5px;margin-top:8px}
+  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  figure{margin:16px 0 4px;text-align:center}
+  figcaption{font-size:13px;color:var(--muted);margin-top:6px}
+  .note{background:var(--warn-soft);border:1px solid var(--line);border-radius:8px;padding:12px 16px;font-size:14px;color:var(--ink)}
+  footer.composition-signal{margin-top:48px;padding-top:16px;border-top:1px solid var(--line);
+    font-size:12.5px;color:var(--muted)}
+  footer.composition-signal code{font-family:var(--mono)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc">
+  <div class="eyebrow">Ideation · Repo-grounded</div>
+  <h1>Per-Space Important Webpages</h1>
+  <p class="lede">Going to a project's desktop and instantly pulling up the webpages that belong there — Comms = LinkedIn + Gmail + a few others — opened, deduped, and ready.</p>
+  <div class="meta">
+    <span class="chip">2026-06-21</span>
+    <span class="chip">topic: per-space-webpages</span>
+    <span class="chip k">focus: quickly open a Space's important webpages</span>
+    <span class="chip">mode: repo-grounded</span>
+  </div>
+</header>
+
+<section>
+<h2>Is it even possible? (short answer)</h2>
+<p><strong>Yes — and the core of it is small.</strong> The product already has the exact seam: <code>bringUpApps()</code> switches to a project's Space and opens its blueprint apps, skipping anything already open. Opening that project's <em>webpages</em> is a sibling of opening its <em>apps</em>. The whole design tension is one asymmetry:</p>
+
+<figure>
+<svg viewBox="0 0 760 230" width="100%" role="img" aria-label="Diagram: opening URLs is free and universal; reading open tabs is permission-gated and browser-limited" style="max-width:720px">
+  <style>
+    .lbl{font:600 14px var(--sans);fill:var(--ink);paint-order:stroke;stroke:var(--surface);stroke-width:3px}
+    .sub{font:12px var(--sans);fill:var(--muted)}
+    .box{fill:var(--surface);stroke:var(--line);stroke-width:1.5}
+    .okfill{fill:var(--ok-soft)} .warnfill{fill:var(--warn-soft)}
+    .tag{font:700 11px var(--mono)}
+  </style>
+  <rect x="20" y="30" width="340" height="160" rx="10" class="box okfill"/>
+  <text x="40" y="58" class="lbl">OPEN a URL</text>
+  <text x="40" y="80" class="sub">NSWorkspace.open · open -a "Chrome" url</text>
+  <text x="40" y="110" class="tag" fill="var(--ok)">NO permission</text>
+  <text x="40" y="134" class="sub">Works in every browser, day one.</text>
+  <text x="40" y="158" class="sub">Can target a specific browser/profile.</text>
+
+  <rect x="400" y="30" width="340" height="160" rx="10" class="box warnfill"/>
+  <text x="420" y="58" class="lbl">READ open tabs</text>
+  <text x="420" y="80" class="sub">AppleScript / Apple Events</text>
+  <text x="420" y="110" class="tag" fill="var(--warn)">Automation grant (once / browser)</text>
+  <text x="420" y="134" class="sub">Safari · Chrome · Brave · Edge ✓</text>
+  <text x="420" y="158" class="sub">Arc partial · Firefox ✗</text>
+
+  <text x="380" y="212" text-anchor="middle" class="sub">Capture &amp; dedupe depend on the right side; just opening pages depends only on the left.</text>
+</svg>
+<figcaption>The hinge: <em>opening</em> pages is trivial and universal; <em>reading what's open</em> (for snapshot-capture and dedupe) is permission-gated and browser-limited.</figcaption>
+</figure>
+
+<p>That asymmetry is why "elegant" splits into two bets — a zero-permission path that ships immediately, and a smarter path that reads tabs once you grant Automation. Both are below. Nothing here requires the brittle "restore my exact live session" that the product already ruled out of identity; this is a <em>curated/captured set of a project's pages</em>, which is on-identity with the app blueprint.</p>
+
+<div class="grounding" style="background:var(--ok-soft);border-color:transparent">
+<p><strong style="color:var(--ok)">✓ Validated on-device (2026-06-21).</strong> Tested live on this Mac (Chrome): a raw <code>open &lt;url&gt;</code> <em>bounces</em> the tab to wherever the browser already has a window — it does <strong>not</strong> land on the desktop you're standing on. The reliable mechanism is a <strong>dedicated per-project browser profile</strong>, opened <strong>only after the Space switch is verified</strong>: a profile with no window open elsewhere has its window <em>born on the current desktop</em>. Confirmed on two desktops; the one failed attempt was pure timing (fired before the switch completed). A shared/default profile fails precisely in the case that matters — when the target desktop has no browser window yet. Full write-up: <code>docs/solutions/integration-issues/macos-per-space-url-opening-needs-windowless-browser-profile.md</code>. This promotes idea&nbsp;6 from a nice-to-have to <strong>the load-bearing enabler</strong>.</p>
+<p style="margin-top:.6em"><strong style="color:var(--ok)">Recommended framing → idea&nbsp;8 (manual launcher).</strong> The cleanest answer isn't to force windows onto the right Space at all — it's a <em>per-Space reminder you click while you're already there</em>. Clicking on the Space opens the page on the Space, no programmatic switching to race and no permission needed; per-project profiles (idea&nbsp;6) stay only as the empty-Space fallback. This fits the product's "remind me, not teleport me" identity and sidesteps the macOS wall instead of hacking around it.</p>
+</div>
+</section>
+
+<section>
+<h2>Grounding Context</h2>
+<div class="grounding">
+<p><strong>Product.</strong> Parallel Project Desktops — a native macOS (Swift/SwiftUI) menu-bar app where each macOS desktop (Space) is a named project, keyed by stable Space UUID. Surfaces: the menu-bar dropdown list, a ⌃⌥Space Spotlight-style search panel, a transient resume card, and a morning recap.</p>
+<p><strong>What a project holds today.</strong> A <code>Project</code> (<code>Project.swift</code>) carries a <code>Blueprint</code> = app <code>bundleIDs</code> + passively-recorded window <code>frames</code> (recorded but not acted on — the seam for future layout-restore). There is <em>no web-URL concept yet.</em></p>
+<p><strong>Capture.</strong> <code>saveCurrentDesktopAsProject</code> / <code>updateApps</code> (<code>AppModel.swift</code>) read the apps open on the active desktop via <code>AppInspector.appsOnCurrentDesktop()</code> and store their bundle IDs — no config form; you capture what's open.</p>
+<p><strong>Boot.</strong> <code>bringUpApps(project)</code> (<code>AppModel.swift:243</code>) is the explicit "Bring up apps here" action: switch to the Space, launch blueprint apps not already windowed here, skip duplicates, report apps stuck on another desktop. <code>enter()</code> is switch-only by design.</p>
+<p><strong>Prior product decisions.</strong> Resume is "remind me, not teleport me"; restoring an exact browser tab / in-app state is explicitly <em>outside the product's identity</em>; auto-learning a project's app-set from usage was <em>deferred</em>; ~7–10 project cap; the app already requires Accessibility + the macOS switch-to-Desktop shortcuts.</p>
+<p><strong>macOS feasibility.</strong> Opening a URL is trivial and permission-free (and can target a specific browser/profile). Reading currently-open tabs needs per-browser AppleScript with a one-time Automation (TCC) grant — Safari/Chrome/Brave/Edge support it, Arc partially, Firefox not at all.</p>
+<p class="note"><strong>Verification note.</strong> Bases are grounded in code read directly during this run (<code>AppModel.swift</code>, <code>Project.swift</code>, <code>AppLauncher.swift</code>) and in standard macOS platform behavior. The optional fresh-context basis-verifier pass was skipped to keep this run fast; the macOS scripting/profile claims should be spike-confirmed before committing (esp. Arc tab enumeration and Safari profile selection).</p>
+</div>
+</section>
+
+<section>
+<h2>Topic Axes</h2>
+<ul class="axes">
+  <li><b>Capture / authoring</b> — how URLs get <em>into</em> a project (snapshot open tabs, manual add, paste, learn-from-use, import).</li>
+  <li><b>Open &amp; boot</b> — how URLs <em>open</em> on entering/booting (which browser, ordering, focus, window grouping).</li>
+  <li><b>Link model</b> — what a "link" <em>is</em> (bare URL vs named/typed entry, grouped sets, per-project browser profile, app+web unified).</li>
+  <li><b>Surfacing / UI</b> — how the user <em>sees and triggers</em> it (menu submenu, ••• menu, search panel, recap).</li>
+  <li><b>Reliability / edge</b> — browser support, login/account state, Automation permission, duplicate avoidance, staleness.</li>
+</ul>
+</section>
+
+<section>
+<h2>Ranked Ideas</h2>
+<div class="jump">
+<strong>Jump to:</strong>
+<ol>
+  <li><a href="#i1">Web links join the blueprint, opened by the existing boot action</a></li>
+  <li><a href="#i2">Ship open-only first — a zero-permission v1</a></li>
+  <li><a href="#i3">A link is a named, ordered, browser-targeted entry (a "destination")</a></li>
+  <li><a href="#i4">Snapshot the open tabs when you save a desktop</a></li>
+  <li><a href="#i5">Reconcile, don't blast — dedupe links against open tabs</a></li>
+  <li><a href="#i6">Per-project browser profile — the right account, automatically</a></li>
+  <li><a href="#i7">Surface it: a per-project links submenu + type-to-open in the search panel</a></li>
+  <li><a href="#i8">Per-Space page reminder + click-to-open — the manual launcher <strong>(recommended)</strong></a></li>
+</ol>
+</div>
+
+<article class="idea" id="i1">
+  <div class="idhead"><span class="num">1</span><h3>Web links join the blueprint, opened by the existing boot action</h3></div>
+  <div class="pills"><span class="pill axis">open &amp; boot</span><span class="pill conf">Confidence 90%</span><span class="pill cx">Complexity Medium</span></div>
+  <figure>
+  <svg viewBox="0 0 720 150" width="100%" role="img" aria-label="One boot action fans out into launching apps and opening URLs" style="max-width:660px">
+    <style>
+      .n{font:600 13.5px var(--sans);fill:var(--ink);paint-order:stroke;stroke:var(--surface);stroke-width:3px}
+      .s2{font:12px var(--sans);fill:var(--muted)}
+      .b2{fill:var(--surface);stroke:var(--line);stroke-width:1.5}
+      .a2{fill:none;stroke:var(--accent);stroke-width:2}
+    </style>
+    <rect x="20" y="52" width="190" height="46" rx="9" class="b2" fill="var(--accent-soft)"/>
+    <text x="115" y="73" text-anchor="middle" class="n">"Bring up here"</text>
+    <text x="115" y="90" text-anchor="middle" class="s2">one action</text>
+    <line x1="210" y1="75" x2="300" y2="48" class="a2"/>
+    <line x1="210" y1="75" x2="300" y2="102" class="a2"/>
+    <rect x="300" y="24" width="200" height="46" rx="9" class="b2"/>
+    <text x="400" y="45" text-anchor="middle" class="n">Launch missing apps</text>
+    <text x="400" y="62" text-anchor="middle" class="s2">(today)</text>
+    <rect x="300" y="80" width="200" height="46" rx="9" class="b2" fill="var(--ok-soft)"/>
+    <text x="400" y="101" text-anchor="middle" class="n">Open missing URLs</text>
+    <text x="400" y="118" text-anchor="middle" class="s2">(new — same loop)</text>
+    <line x1="500" y1="75" x2="585" y2="75" class="a2"/>
+    <rect x="585" y="52" width="115" height="46" rx="9" class="b2"/>
+    <text x="642" y="79" text-anchor="middle" class="n">Space ready</text>
+  </svg>
+  </figure>
+  <dl>
+    <dt>Description</dt><dd>Extend <code>Blueprint</code> with an ordered list of links and teach <code>bringUpApps</code> to open each URL (via <code>NSWorkspace.open</code> / <code>open -a</code>) right after it launches the apps — same single action, now restoring both the apps and the pages. An optional "anchor" page opens focused so the Space boots <em>into</em> the work rather than onto a random frontmost tab, and a one-line result strip reports only what failed.</dd>
+    <dt>Axis</dt><dd>open &amp; boot</dd>
+    <dt>Basis</dt><dd><span class="basis-tag">direct:</span> <code>bringUpApps</code> (<code>AppModel.swift:243</code>) is already the explicit "set up this desktop" loop with dedupe; <code>NSWorkspace.open</code> opens a URL with no permission. Opening pages is the same primitive as launching apps.</dd>
+    <dt>Rationale</dt><dd>The user's verbatim ask — "go to a desktop and quickly pull up all the important webpages and open them" — is literally the boot action they already invoke, minus the URLs. Reusing it means one verb to learn, not two.</dd>
+    <dt>Downsides</dt><dd>Needs the link data model (idea 3) to exist first; without dedupe (idea 5) re-running spams duplicate tabs. The anchor/focus refinement is per-browser AppleScript, so keep it best-effort. <strong>Placement constraint (validated):</strong> open URLs only <em>after</em> the switch engine confirms the Space landed, and into the project's own browser window — which requires idea 6, since a browser already windowed on another desktop can't be made to open here.</dd>
+  </dl>
+</article>
+
+<article class="idea" id="i2">
+  <div class="idhead"><span class="num">2</span><h3>Ship open-only first — a zero-permission v1</h3></div>
+  <div class="pills"><span class="pill axis">reliability / edge</span><span class="pill conf">Confidence 85%</span><span class="pill cx">Complexity Low</span></div>
+  <dl>
+    <dt>Description</dt><dd>Sequence the work so v1 requests <em>no</em> new permission at all. Authoring is manual to start — paste a URL, "add this page," or a "save the current tab" command — and opening uses permission-free <code>open</code>. The Automation (tab-reading) grant is deferred until the user explicitly opts into snapshot-capture (idea 4) or dedupe (idea 5), prompted at the exact moment its value is obvious.</dd>
+    <dt>Axis</dt><dd>reliability / edge</dd>
+    <dt>Basis</dt><dd><span class="basis-tag">direct:</span> grounding — opening needs no permission; reading tabs needs an Automation grant and fails on Firefox. <span class="basis-tag">reasoned:</span> just-in-time consent grants higher than upfront; the app already spends two permission asks (Accessibility + shortcuts), so a third on first run risks the activation funnel.</dd>
+    <dt>Rationale</dt><dd>Decoupling "open" (always works, every browser) from "read" (best-effort, scriptable browsers) guarantees the headline promise never fails — and it aligns with the existing "remind me, not teleport me" identity. This is the cheapest path to the user actually having the feature.</dd>
+    <dt>Downsides</dt><dd>Manual authoring is more friction than auto-snapshot until idea 4 lands; some users will want the snapshot on day one.</dd>
+  </dl>
+</article>
+
+<article class="idea" id="i3">
+  <div class="idhead"><span class="num">3</span><h3>A link is a named, ordered, browser-targeted entry — a "destination"</h3></div>
+  <div class="pills"><span class="pill axis">link model</span><span class="pill conf">Confidence 80%</span><span class="pill cx">Complexity Low–Medium</span></div>
+  <dl>
+    <dt>Description</dt><dd>Model a link as a typed entry <code>{ url, title, browser? }</code> rather than a bare string, stored as a parallel field on <code>Blueprint</code> (alongside <code>bundleIDs</code>, exactly as <code>frames</code> enriches a bundle ID). The menu shows "LinkedIn", not the raw URL; order is preserved; a link can pin to a specific browser. Leave the door open to generalize "url" into "destination" later (a Linear board, a Figma file, an <code>obsidian://</code> deep link) without a schema rewrite.</dd>
+    <dt>Axis</dt><dd>link model</dd>
+    <dt>Basis</dt><dd><span class="basis-tag">direct:</span> <code>Blueprint</code> (<code>Project.swift:13</code>) already pairs <code>bundleIDs</code> with a structured <code>frames</code> map — a typed link array is the same shape. <span class="basis-tag">external:</span> deep-link schemes (<code>slack://</code>, <code>obsidian://</code>, <code>things://</code>) are real and openable via the same call, so the entry generalizes cleanly.</dd>
+    <dt>Rationale</dt><dd>This is the one-way-door decision: the JSON schema and every UI that reads it depend on it. Get the entry type right once and groups, per-project profiles, and destinations all become cheap; get it wrong (bare strings) and the menu is unreadable and the model has to be migrated.</dd>
+    <dt>Downsides</dt><dd>Risk of over-generalizing into a "universal launcher" — keep v1 to <code>{url, title, browser?}</code> and treat destinations as a noted extension, not scope.</dd>
+  </dl>
+</article>
+
+<article class="idea" id="i4">
+  <div class="idhead"><span class="num">4</span><h3>Snapshot the open tabs when you save a desktop</h3></div>
+  <div class="pills"><span class="pill axis">capture / authoring</span><span class="pill conf">Confidence 75%</span><span class="pill cx">Complexity Medium</span></div>
+  <dl>
+    <dt>Description</dt><dd>Mirror how apps are captured: when the user hits "Save this desktop" / "Update apps," also read the currently-open tabs of any scriptable browser on that desktop and store their URLs as suggested links. No form — you arrange your Comms desktop once, save, and LinkedIn + Gmail are now part of the project. Crucially this reads tabs only at <em>authoring</em> time, never on every boot, so it doesn't drift into the rejected "teleport me" behavior.</dd>
+    <dt>Axis</dt><dd>capture / authoring</dd>
+    <dt>Basis</dt><dd><span class="basis-tag">direct:</span> capture today (<code>AppModel.swift:158</code>/<code>:196</code>) reads open apps with zero config; grounding confirms open tabs are readable via per-browser AppleScript with one Automation grant for Safari/Chrome/Brave/Edge.</dd>
+    <dt>Rationale</dt><dd>Manual URL entry would betray the product's "you capture what's open, no config" philosophy. Snapshot-capture is the only authoring model consistent with how the app already works — and it spends the Automation grant once, for authoring, not on the hot path.</dd>
+    <dt>Downsides</dt><dd>Per-browser scripting + an Automation prompt; Firefox can't be read and Arc only partially. Pairs with idea 2: snapshot is the opt-in upgrade over the zero-permission baseline.</dd>
+  </dl>
+</article>
+
+<article class="idea" id="i5">
+  <div class="idhead"><span class="num">5</span><h3>Reconcile, don't blast — dedupe links against open tabs</h3></div>
+  <div class="pills"><span class="pill axis">reliability / edge</span><span class="pill conf">Confidence 70%</span><span class="pill cx">Complexity Medium</span></div>
+  <dl>
+    <dt>Description</dt><dd>Before opening a project's URLs, read the target browser's current tabs and open only the ones missing (normalizing URLs — strip tracking params, trailing slash, <code>www</code>); focus an existing tab instead of spawning a second. Re-running boot becomes idempotent and safe — the Space converges to its intended page set rather than accumulating duplicates.</dd>
+    <dt>Axis</dt><dd>reliability / edge</dd>
+    <dt>Basis</dt><dd><span class="basis-tag">direct:</span> <code>bringUpApps</code> (<code>AppModel.swift:259</code>/<code>:275</code>) already encodes a "skip what's already windowed here, never duplicate" contract for apps — links must honor the same promise or feel broken. <span class="basis-tag">reasoned:</span> URL normalization for matching is standard.</dd>
+    <dt>Rationale</dt><dd>Duplicate-tab spam is the single fastest way a "open my pages" feature becomes annoying enough to disable. The codebase already treats no-duplication as a core promise; extending it to links is what makes the action habitual.</dd>
+    <dt>Downsides</dt><dd>Dedupe requires reading current tabs (the Automation grant + per-browser logic); when unavailable (Firefox, ungranted), fall back to dumb open and say so once.</dd>
+  </dl>
+</article>
+
+<article class="idea" id="i6">
+  <div class="idhead"><span class="num">6</span><h3>Per-project browser profile — the mechanism that makes Space placement work <span style="color:var(--ok)">(validated)</span></h3></div>
+  <div class="pills"><span class="pill axis">link model</span><span class="pill conf">Confidence 90%</span><span class="pill cx">Complexity Medium–High</span></div>
+  <dl>
+    <dt>Description</dt><dd>Bind each project to a dedicated browser <em>profile</em> (Chrome <code>--profile-directory</code>). This is the load-bearing enabler, not just a convenience: a profile with no window open elsewhere has its new window <em>born on the desktop you're on</em>, which is the only reliable way to get a project's pages onto the project's Space. It also delivers per-project identity for free — Comms opens the personal Gmail, Sales the work Gmail, no manual account-switching.</dd>
+    <dt>Axis</dt><dd>link model</dd>
+    <dt>Basis</dt><dd><span class="basis-tag">direct:</span> validated on-device 2026-06-21 (see solutions doc) — a fresh-profile <code>--new-window</code> opened on the current desktop on two separate Spaces; a raw <code>open</code> on the shared profile bounced to where Chrome already had a window. <span class="basis-tag">external:</span> Chromium accepts <code>--profile-directory</code> launch flags. <span class="basis-tag">reasoned:</span> the profile having no window elsewhere is exactly what avoids the "can't place a window on another Space" wall.</dd>
+    <dt>Rationale</dt><dd>This is what answers "will it work?" When the target desktop has no browser window yet — the case the user was rightly worried about — a shared/default profile <em>cannot</em> be forced to open there. A dedicated profile can, because there's no twin window elsewhere to get pulled to. Per-project login isolation is the bonus on top.</dd>
+    <dt>Downsides</dt><dd>Per-browser launch-flag matrix; cleanest on Chromium (Chrome/Brave/Edge) — Safari 17+ profiles have no clean CLI selection, Firefox uses <code>-P</code>. One profile per project means logging in once per profile. Residual edge: if the user manually drags a project's profile window to another desktop, the bounce returns — detect "profile window not on this Space" and warn / reopen.</dd>
+  </dl>
+</article>
+
+<article class="idea" id="i7">
+  <div class="idhead"><span class="num">7</span><h3>Surface it: a per-project links submenu + type-to-open in the search panel</h3></div>
+  <div class="pills"><span class="pill axis">surfacing / UI</span><span class="pill conf">Confidence 75%</span><span class="pill cx">Complexity Medium</span></div>
+  <dl>
+    <dt>Description</dt><dd>Two surfaces, reusing what exists. (a) A "links" submenu under each project row in the menu-bar dropdown — hover "Comms" to reveal LinkedIn, Gmail, etc., each openable individually, plus "Open all here." (b) Index every project's links in the ⌃⌥Space search panel so typing "gmail" or "Comms↵" resolves to "switch + open the pages" as one keyboard command. The list shows <em>what would open</em>; the panel <em>does it</em>.</dd>
+    <dt>Axis</dt><dd>surfacing / UI</dd>
+    <dt>Basis</dt><dd><span class="basis-tag">direct:</span> both the menu-bar list and the ⌃⌥Space Spotlight panel already exist as surfaces. <span class="basis-tag">reasoned:</span> the ask is an action ("quickly pull up… and open them"), not a browsing task — a keyboard-first open beats hover-and-click, and a submenu makes a project's pages glanceable even from another desktop.</dd>
+    <dt>Rationale</dt><dd>The slowest part of pulling up a project page is the navigation overhead (find desktop → find browser → find tab). A fuzzy search-to-open collapses that to two keystrokes; the submenu cures the "which pages mattered for Comms again?" forgetfulness.</dd>
+    <dt>Downsides</dt><dd>Expands the search panel's scope from project <em>names</em> to project <em>contents</em> — a real product-surface decision — and adds menu depth. Scales to a searchable index if a project ever has many pages.</dd>
+  </dl>
+</article>
+
+<article class="idea" id="i8">
+  <div class="idhead"><span class="num">8</span><h3>Per-Space page reminder + click-to-open — the manual launcher <span style="color:var(--ok)">(recommended framing)</span></h3></div>
+  <div class="pills"><span class="pill axis">surfacing / UI</span><span class="pill conf">Confidence 90%</span><span class="pill cx">Complexity Low–Medium</span></div>
+  <dl>
+    <dt>Description</dt><dd>Instead of auto-forcing windows onto the right Space, show each project's important pages as a click-list on surfaces that already exist — the menu-bar project row, the resume card, the morning recap, the ⌃⌥Space panel: <code>[LinkedIn] [Gmail] [Open all]</code>. You click while you're on the Space, and the page opens there because you have focus. A <em>reminder + launcher</em>, not an auto-restore.</dd>
+    <dt>Axis</dt><dd>surfacing / UI</dd>
+    <dt>Basis</dt><dd><span class="basis-tag">direct:</span> validated on-device 2026-06-21 — sitting on a desktop that already had its own Chrome window, a plain <code>open</code> opened the tab <em>in that local window</em>, no bounce. Opening a URL is permission-free and works in every browser; the resume card and morning recap already exist as surfaces. <span class="basis-tag">reasoned:</span> the bounce only occurs when the app switches Spaces and places windows programmatically — keeping the human on the Space at click time removes that whole failure mode <em>and</em> the switch-timing race we hit during testing.</dd>
+    <dt>Rationale</dt><dd>This fits the product's own "remind me, not teleport me" identity and sidesteps the macOS window-placement wall instead of hacking around it. In the common case it needs no Automation permission, no per-project profiles, and no global-setting change — it just opens the page into the browser window already on the Space you're standing on. It's the synthesis of ideas 1, 3, and 7, reframed as manual rather than automatic.</dd>
+    <dt>Downsides</dt><dd>If the current Space has <em>no</em> browser window, a plain click still opens wherever the browser lives (the bounce) — but as a visible, intentional action, not a silent failure. The clean fallback is to open the project's dedicated-profile window (idea 6), born here because you're here. So: manual launcher in the common case, profile fallback for empty Spaces.</dd>
+  </dl>
+</article>
+</section>
+
+<section>
+<h2>Rejection Summary</h2>
+<table>
+  <thead><tr><th>Idea</th><th>Reason cut or folded</th></tr></thead>
+  <tbody>
+    <tr><td>One-window tab-group boot (open all pages as a single browser window/tab group)</td><td>Folded into idea 1 as an open-mode option — too implementation-specific to stand alone at ideation altitude.</td></tr>
+    <tr><td>"Live-tab reconciliation" as the stored model (store a diff rule, not a list)</td><td>Folded into idea 5 — same reconcile-don't-blast framing; storing a list is simpler and sufficient.</td></tr>
+    <tr><td>Anchor / "tuning-note" page opens focused first</td><td>Folded into idea 1 as a refinement of boot ordering/focus.</td></tr>
+    <tr><td>Aviation "flows-then-checklist": report only failures after boot</td><td>Folded into idea 1's result strip — a refinement, not a standalone direction.</td></tr>
+    <tr><td>Speed-dial positional shortcuts (Space → number → page)</td><td>Folded into idea 7 — a variant of search-panel surfacing.</td></tr>
+    <tr><td>Fully-automatic page curation (auto-learn the page set from usage)</td><td>Contradicts the deferred auto-learn decision and auto-noise erodes trust; revisit as a later brainstorm, not v1.</td></tr>
+    <tr><td>Link drift / freshness flag (warn when saved pages go stale)</td><td>Real but secondary — better as follow-up once the core set exists; below the near-term bar.</td></tr>
+    <tr><td>Git-stash ephemeral overlay set (temporary pages you pop and clear)</td><td>Solves a junk-drawer problem that only appears after the core ships; premature for v1.</td></tr>
+    <tr><td>No-browser action-URLs that fire side-effects on boot (<code>shortcuts://</code>, webhooks)</td><td>Folded into idea 3's "destination" generalization and flagged as scope risk, not a v1 line item.</td></tr>
+    <tr><td>Webpages-first blueprint (pages become the primary unit, apps inferred)</td><td>Reframes the app-centric "a Space is a project" identity beyond the asked scope — surface as a brainstorm provocation, not this feature.</td></tr>
+    <tr><td>Manual-only plaintext page file as source of truth</td><td>Partially folded into idea 2 — the JSON store already persists; export/import is a reliability follow-up.</td></tr>
+    <tr><td>100-page searchable per-Space index</td><td>Folded into idea 7 as the scale story — same surfacing model, larger N.</td></tr>
+    <tr><td>"Intent resolves to the right account" (pharmacy-formulary analogy)</td><td>Folded into idea 6 — the same wrong-account problem, solved concretely by profiles.</td></tr>
+  </tbody>
+</table>
+</section>
+
+<footer class="composition-signal">
+Composed 2026-06-21 by ce-ideate · repo-grounded on <code>macDesktops</code> · 5-frame ideation fleet, 40 raw candidates → 7 survivors (13 cut/folded) across 5 axes · fresh-context basis-verifier skipped this run (bases are directly-read code + standard macOS platform behavior). · Updated 2026-06-21 with on-device feasibility findings — see <code>docs/solutions/integration-issues/macos-per-space-url-opening-needs-windowless-browser-profile.md</code>.
+</footer>
+
+</div>
+</body>
+</html>
