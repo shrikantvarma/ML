@@ -9,6 +9,9 @@ struct MenuBarListView: View {
     @State private var newName = ""
     @State private var renamingID: UUID?
     @State private var renameText = ""
+    /// Which project rows show their links inline. The current project auto-expands
+    /// (seeded onAppear); others start collapsed to keep the list short (U5).
+    @State private var expandedIDs: Set<UUID> = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -46,55 +49,124 @@ struct MenuBarListView: View {
         }
         .padding(12)
         .frame(width: 320)
-        .onAppear { model.refreshPermissions() }   // re-check whenever the popover opens
+        .onAppear {
+            model.refreshPermissions()   // re-check whenever the popover opens
+            if let cur = model.currentProject?.id { expandedIDs.insert(cur) }  // auto-expand current
+        }
     }
 
     @ViewBuilder
     private func projectRow(_ project: Project) -> some View {
-        HStack(spacing: 8) {
-            if renamingID == project.id {
-                TextField("Name", text: $renameText, onCommit: {
-                    model.rename(project, to: renameText); renamingID = nil
-                })
-                .textFieldStyle(.roundedBorder)
-            } else {
-                let isCurrent = model.currentProject?.id == project.id
-                Button { model.enter(project) } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: isCurrent ? "largecircle.fill.circle" : "circle")
-                            .font(.caption2)
-                            .foregroundStyle(isCurrent ? Color.accentColor : Color.secondary.opacity(0.35))
-                            .help(isCurrent ? "You're on this desktop" : "")
-                        Text(project.emoji ?? "🗂").frame(width: 20)
-                        Text(project.name).fontWeight(isCurrent ? .semibold : .regular)
-                        Spacer()
-                        if project.drifted {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundStyle(.yellow)
-                                .help("This desktop moved — Recalibrate")
-                        }
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 6) {
+                if renamingID == project.id {
+                    TextField("Name", text: $renameText, onCommit: {
+                        model.rename(project, to: renameText); renamingID = nil
+                    })
+                    .textFieldStyle(.roundedBorder)
+                } else {
+                    let isCurrent = model.currentProject?.id == project.id
+                    let links = project.blueprint.links
 
-                Menu {
-                    Button("Bring up apps here") { model.bringUpApps(project) }
-                    Divider()
-                    Button("Rename") { renameText = project.name; renamingID = project.id }
-                    Button("Update apps from this desktop") { model.updateApps(project) }
-                    if project.drifted {
-                        Button("Recalibrate to this desktop") { model.recalibrate(project) }
+                    Button { model.enter(project) } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: isCurrent ? "largecircle.fill.circle" : "circle")
+                                .font(.caption2)
+                                .foregroundStyle(isCurrent ? Color.accentColor : Color.secondary.opacity(0.35))
+                                .help(isCurrent ? "You're on this desktop" : "")
+                            Text(project.emoji ?? "🗂").frame(width: 20)
+                            Text(project.name).fontWeight(isCurrent ? .semibold : .regular)
+                            Spacer()
+                            if project.drifted {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundStyle(.yellow)
+                                    .help("This desktop moved — Recalibrate")
+                            }
+                        }
+                        .contentShape(Rectangle())
                     }
-                    Divider()
-                    Button("Delete", role: .destructive) { model.delete(project) }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
+                    .buttonStyle(.plain)
+
+                    // Count badge: number of links, "—" when none.
+                    Text(links.isEmpty ? "—" : "\(links.count)")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6).padding(.vertical, 1)
+                        .background(Capsule().fill(Color.secondary.opacity(0.15)))
+                        .help(links.isEmpty ? "No links" : "\(links.count) link\(links.count == 1 ? "" : "s")")
+
+                    // Chevron is the SOLE expand/collapse control (non-interactive when empty).
+                    Button { toggleExpanded(project.id) } label: {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 9, weight: .semibold))
+                            .rotationEffect(.degrees(expandedIDs.contains(project.id) ? 90 : 0))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 14, height: 14)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(links.isEmpty)
+                    .opacity(links.isEmpty ? 0.25 : 1)
+
+                    Menu {
+                        Button("Bring up apps here") { model.bringUpApps(project) }
+                        Divider()
+                        Button("Rename") { renameText = project.name; renamingID = project.id }
+                        Button("Update apps from this desktop") { model.updateApps(project) }
+                        if project.drifted {
+                            Button("Recalibrate to this desktop") { model.recalibrate(project) }
+                        }
+                        Divider()
+                        Button("Delete", role: .destructive) { model.delete(project) }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                    .menuStyle(.borderlessButton)
+                    .frame(width: 28)
                 }
-                .menuStyle(.borderlessButton)
-                .frame(width: 28)
+            }
+
+            if renamingID != project.id && expandedIDs.contains(project.id) {
+                linksBlock(project)
             }
         }
+    }
+
+    /// The inline links revealed under an expanded project row (U5).
+    @ViewBuilder
+    private func linksBlock(_ project: Project) -> some View {
+        let links = project.blueprint.links
+        VStack(alignment: .leading, spacing: 3) {
+            if links.isEmpty {
+                Text("No links yet — add one with ••• ▸ Add link…")
+                    .font(.caption2).foregroundStyle(.secondary)
+            } else {
+                ForEach(links) { link in
+                    Button { model.openLink(link, in: project) } label: {
+                        HStack(spacing: 7) {
+                            Circle().fill(Color.accentColor).frame(width: 6, height: 6)
+                            Text(link.title.isEmpty ? link.url : link.title)
+                                .font(.callout).lineLimit(1)
+                            Spacer()
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(link.url)
+                }
+                Button { model.openLinks(project) } label: {
+                    Text("Open all here").font(.caption.weight(.medium))
+                        .foregroundStyle(Color.accentColor)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.leading, 26)
+        .padding(.bottom, 2)
+    }
+
+    private func toggleExpanded(_ id: UUID) {
+        if expandedIDs.contains(id) { expandedIDs.remove(id) } else { expandedIDs.insert(id) }
     }
 
     private func save() {
