@@ -10,10 +10,6 @@ final class FakeSpaces: SpacesProvider {
     init(ordered: [String], current: String?) { self.ordered = ordered; self.current = current }
     func orderedUserSpaceUUIDs() -> [String] { ordered }
     func currentSpaceUUID() -> String? { current }
-    func spaceLocation(uuid: String) -> SpaceLocation? {
-        guard let i = ordered.firstIndex(of: uuid) else { return nil }
-        return SpaceLocation(displayID: "D0", managedSpaceID: Int64(i + 1))
-    }
 }
 
 final class FakePoster: KeyPosting {
@@ -111,117 +107,6 @@ final class SwitchEngineTests: XCTestCase {
         let spaces = FakeSpaces(ordered: ordered, current: "S1")
         let result = await engine(spaces, FakePoster()).switch(toSpaceUUID: "S10")
         XCTAssertEqual(result, .notKeyable(index: 10))
-    }
-}
-
-// MARK: - DirectSwitchEngine (multi-display, Approach A)
-
-/// Models multiple displays each with their own current space; the fake switcher
-/// "lands" a switch by updating that display's current, so the engine's poll can
-/// verify it — exactly the real flow, minus the WindowServer.
-final class FakeLocatedSpaces: SpacesProvider {
-    let displays: [[(uuid: String, id: Int64)]]
-    var currentByDisplay: [Int: String]
-    init(displays: [[(uuid: String, id: Int64)]], currentByDisplay: [Int: String]) {
-        self.displays = displays; self.currentByDisplay = currentByDisplay
-    }
-    func orderedUserSpaceUUIDs() -> [String] { displays.first?.map { $0.uuid } ?? [] }
-    func currentSpaceUUID() -> String? { currentByDisplay[0] }
-    func allUserSpaceUUIDs() -> [String] { displays.flatMap { $0.map { $0.uuid } } }
-    func spaceLocation(uuid: String) -> SpaceLocation? {
-        for (di, spaces) in displays.enumerated() {
-            if let s = spaces.first(where: { $0.uuid == uuid }) {
-                return SpaceLocation(displayID: "D\(di)", managedSpaceID: s.id)
-            }
-        }
-        return nil
-    }
-    func isSpaceCurrent(_ uuid: String) -> Bool { currentByDisplay.values.contains(uuid) }
-    func displayIndex(forManagedSpaceID id: Int64) -> Int? {
-        displays.firstIndex { $0.contains(where: { $0.id == id }) }
-    }
-    func uuid(forManagedSpaceID id: Int64) -> String? {
-        for spaces in displays { if let s = spaces.first(where: { $0.id == id }) { return s.uuid } }
-        return nil
-    }
-}
-
-final class FakeSwitcher: SpaceSwitching {
-    var calls: [(display: String, id: Int64)] = []
-    var available = true
-    var onSwitch: ((String, Int64) -> Void)?
-    func setCurrentSpace(displayID: String, managedSpaceID: Int64) -> Bool {
-        calls.append((displayID, managedSpaceID))
-        guard available else { return false }
-        onSwitch?(displayID, managedSpaceID)
-        return true
-    }
-}
-
-final class DirectSwitchEngineTests: XCTestCase {
-    private func engine(_ spaces: SpacesProvider, _ switcher: SpaceSwitching,
-                        timeoutMs: Int = 1000) -> DirectSwitchEngine {
-        DirectSwitchEngine(spaces: spaces, switcher: switcher, timeoutMs: timeoutMs, pollMs: 5)
-    }
-    /// Wire a switcher to "land" on its display, like the WindowServer would.
-    private func landing(_ spaces: FakeLocatedSpaces) -> (String, Int64) -> Void {
-        { [weak spaces] _, id in
-            guard let spaces, let di = spaces.displayIndex(forManagedSpaceID: id),
-                  let u = spaces.uuid(forManagedSpaceID: id) else { return }
-            spaces.currentByDisplay[di] = u
-        }
-    }
-
-    func testSwitchesViaDirectCallThenVerifies() async {
-        let spaces = FakeLocatedSpaces(displays: [[("A", 1), ("B", 2)], [("C", 101)]],
-                                       currentByDisplay: [0: "A", 1: "C"])
-        let switcher = FakeSwitcher(); switcher.onSwitch = landing(spaces)
-        let result = await engine(spaces, switcher).switch(toSpaceUUID: "B")
-        XCTAssertEqual(switcher.calls.map { $0.id }, [2])
-        if case .switched = result {} else { XCTFail("expected .switched, got \(result)") }
-        XCTAssertTrue(spaces.isSpaceCurrent("B"))
-    }
-
-    func testSwitchesSpaceOnSecondaryDisplay() async {
-        // Target D on Display 1 while Display 0 stays put — the multi-display case.
-        let spaces = FakeLocatedSpaces(displays: [[("A", 1)], [("C", 101), ("D", 102)]],
-                                       currentByDisplay: [0: "A", 1: "C"])
-        let switcher = FakeSwitcher(); switcher.onSwitch = landing(spaces)
-        let result = await engine(spaces, switcher).switch(toSpaceUUID: "D")
-        XCTAssertEqual(switcher.calls.map { $0.id }, [102], "switched the secondary display's space")
-        if case .switched = result {} else { XCTFail("expected .switched, got \(result)") }
-        XCTAssertEqual(spaces.currentByDisplay[0], "A", "the other display must not move")
-    }
-
-    func testAlreadyCurrentShortCircuits() async {
-        let spaces = FakeLocatedSpaces(displays: [[("A", 1), ("B", 2)]], currentByDisplay: [0: "A"])
-        let switcher = FakeSwitcher()
-        let result = await engine(spaces, switcher).switch(toSpaceUUID: "A")
-        XCTAssertTrue(switcher.calls.isEmpty, "no switch issued when already current")
-        if case .switched = result {} else { XCTFail("expected .switched, got \(result)") }
-    }
-
-    func testDriftWhenUUIDAbsentIssuesNoSwitch() async {
-        let spaces = FakeLocatedSpaces(displays: [[("A", 1)]], currentByDisplay: [0: "A"])
-        let switcher = FakeSwitcher()
-        let result = await engine(spaces, switcher).switch(toSpaceUUID: "Z")
-        XCTAssertEqual(result, .driftDetected)
-        XCTAssertTrue(switcher.calls.isEmpty)
-    }
-
-    func testVerificationFailsOnTimeoutWithoutHanging() async {
-        let spaces = FakeLocatedSpaces(displays: [[("A", 1), ("B", 2)]], currentByDisplay: [0: "A"])
-        let switcher = FakeSwitcher()   // onSwitch nil → current never updates
-        let result = await engine(spaces, switcher, timeoutMs: 40).switch(toSpaceUUID: "B")
-        XCTAssertEqual(result, .verificationFailed)
-        XCTAssertEqual(switcher.calls.map { $0.id }, [2], "it did attempt the switch")
-    }
-
-    func testUnavailableSymbolFailsGracefully() async {
-        let spaces = FakeLocatedSpaces(displays: [[("A", 1), ("B", 2)]], currentByDisplay: [0: "A"])
-        let switcher = FakeSwitcher(); switcher.available = false
-        let result = await engine(spaces, switcher).switch(toSpaceUUID: "B")
-        XCTAssertEqual(result, .verificationFailed)
     }
 }
 
@@ -511,46 +396,6 @@ final class DriftDetectorTests: XCTestCase {
         // A bound project whose desktop was removed is drifted; reordered ones are not.
         let drifted = DriftDetector.driftedUUIDs(bound: ["A", "B", "Z"], in: ["B", "A", "C"])
         XCTAssertEqual(drifted, ["Z"])
-    }
-}
-
-// MARK: - Multi-display read (drift across displays)
-
-final class FakeMultiDisplaySpaces: SpacesProvider {
-    let perDisplay: [[String]]   // perDisplay[0] = "primary"
-    let current: String?
-    init(perDisplay: [[String]], current: String?) { self.perDisplay = perDisplay; self.current = current }
-    func orderedUserSpaceUUIDs() -> [String] { perDisplay.first ?? [] }
-    func currentSpaceUUID() -> String? { current }
-    func allUserSpaceUUIDs() -> [String] { perDisplay.flatMap { $0 } }
-    func spaceLocation(uuid: String) -> SpaceLocation? {
-        for (di, spaces) in perDisplay.enumerated() {
-            if let i = spaces.firstIndex(of: uuid) {
-                return SpaceLocation(displayID: "D\(di)", managedSpaceID: Int64(di * 100 + i + 1))
-            }
-        }
-        return nil
-    }
-}
-
-final class MultiDisplaySpacesTests: XCTestCase {
-    func testAllUserSpaceUUIDsUnionsAcrossDisplays() {
-        let s = FakeMultiDisplaySpaces(perDisplay: [["A", "B"], ["C", "D"]], current: "A")
-        XCTAssertEqual(Set(s.allUserSpaceUUIDs()), ["A", "B", "C", "D"])
-    }
-    func testSpaceMovedToSecondaryDisplayIsNotDrifted() {
-        // "C" now lives on display 2; bound A and C must NOT be flagged drifted.
-        let s = FakeMultiDisplaySpaces(perDisplay: [["A", "B"], ["C"]], current: "A")
-        XCTAssertEqual(DriftDetector.driftedUUIDs(bound: ["A", "C"], in: s.allUserSpaceUUIDs()), [])
-    }
-    func testTrulyDeletedSpaceStillDrifts() {
-        let s = FakeMultiDisplaySpaces(perDisplay: [["A"], ["C"]], current: "A")
-        XCTAssertEqual(DriftDetector.driftedUUIDs(bound: ["A", "Z"], in: s.allUserSpaceUUIDs()), ["Z"])
-    }
-    func testDefaultAllUserSpacesFallsBackToOrdered() {
-        // The existing single-display fake gets the union for free via the default impl.
-        let s = FakeSpaces(ordered: ["A", "B"], current: "A")
-        XCTAssertEqual(s.allUserSpaceUUIDs(), ["A", "B"])
     }
 }
 
