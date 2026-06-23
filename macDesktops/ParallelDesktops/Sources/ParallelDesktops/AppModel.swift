@@ -248,6 +248,31 @@ final class AppModel: ObservableObject {
         status = "Added “\(title)” to “\(p.name)”."
     }
 
+    // MARK: Checklist (U3)
+
+    /// Append a next-action to a project's checklist (ignores empty text).
+    func addChecklistItem(_ text: String, to project: Project) {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty, var p = projects.first(where: { $0.id == project.id }) else { return }
+        p.blueprint.checklist.append(ChecklistItem(text: trimmed))
+        store.update(p); projects = store.projects; recomputeCurrent()
+    }
+
+    /// Flip an item's done state.
+    func toggleChecklistItem(_ id: UUID, in project: Project) {
+        guard var p = projects.first(where: { $0.id == project.id }),
+              let i = p.blueprint.checklist.firstIndex(where: { $0.id == id }) else { return }
+        p.blueprint.checklist[i].done.toggle()
+        store.update(p); projects = store.projects; recomputeCurrent()
+    }
+
+    /// Remove an item from the checklist.
+    func removeChecklistItem(_ id: UUID, from project: Project) {
+        guard var p = projects.first(where: { $0.id == project.id }) else { return }
+        p.blueprint.checklist.removeAll { $0.id == id }
+        store.update(p); projects = store.projects; recomputeCurrent()
+    }
+
     /// Set (or clear → auto) the project's identity icon (an SF Symbol name).
     func setIcon(_ symbol: String?, for project: Project) {
         guard var p = projects.first(where: { $0.id == project.id }) else { return }
