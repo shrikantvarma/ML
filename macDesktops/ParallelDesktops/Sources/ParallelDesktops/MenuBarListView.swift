@@ -23,6 +23,9 @@ struct MenuBarListView: View {
     @State private var hoveredOpenAllID: UUID?
     /// Which project row is showing the inline icon picker (U6 follow-up).
     @State private var iconPickingID: UUID?
+    /// Per-project "add a next step" draft text + hover tracking for checklist rows (U4).
+    @State private var checklistDrafts: [UUID: String] = [:]
+    @State private var hoveredChecklistID: UUID?
 
     /// Palette carried from the mock (opacity-based so it adapts to light/dark).
     private enum Palette {
@@ -111,9 +114,76 @@ struct MenuBarListView: View {
             }
             if renamingID != project.id && addingLinkID != project.id
                 && iconPickingID != project.id && expandedIDs.contains(project.id) {
-                linksBlock(project)
+                if !project.blueprint.links.isEmpty { linksBlock(project) }
+                checklistBlock(project)
             }
         }
+    }
+
+    /// The project's "what's next" checklist: toggleable items + an always-present
+    /// quick-add field (U4). Real notes live in the linked doc; this is glanceable.
+    @ViewBuilder
+    private func checklistBlock(_ project: Project) -> some View {
+        let items = project.blueprint.checklist
+        HStack(alignment: .top, spacing: 8) {
+            RoundedRectangle(cornerRadius: 1).fill(Palette.rail).frame(width: 2)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("NEXT").font(.system(size: 9.5, weight: .semibold))
+                    .foregroundStyle(.secondary).tracking(0.5)
+                    .padding(.horizontal, 7).padding(.bottom, 1)
+
+                ForEach(items) { item in
+                    HStack(spacing: 7) {
+                        Button { model.toggleChecklistItem(item.id, in: project) } label: {
+                            Image(systemName: item.done ? "checkmark.circle.fill" : "circle")
+                                .font(.system(size: 13))
+                                .foregroundStyle(item.done ? Color.accentColor : Color.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        Text(item.text)
+                            .font(.callout)
+                            .strikethrough(item.done)
+                            .foregroundStyle(item.done ? .secondary : .primary)
+                            .lineLimit(2)
+                        Spacer()
+                        Button { model.removeChecklistItem(item.id, from: project) } label: {
+                            Image(systemName: "xmark").font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .buttonStyle(.plain)
+                        .opacity(hoveredChecklistID == item.id ? 1 : 0)
+                        .help("Remove")
+                    }
+                    .padding(.horizontal, 7).padding(.vertical, 3)
+                    .background(RoundedRectangle(cornerRadius: 6)
+                        .fill(hoveredChecklistID == item.id ? Palette.hover : Color.clear))
+                    .contentShape(Rectangle())
+                    .onHover { inside in
+                        hoveredChecklistID = inside ? item.id : (hoveredChecklistID == item.id ? nil : hoveredChecklistID)
+                    }
+                }
+
+                // Quick-add — always present under an expanded project.
+                HStack(spacing: 7) {
+                    Image(systemName: "plus.circle")
+                        .font(.system(size: 13)).foregroundStyle(.secondary)
+                    TextField("add a next step…", text: Binding(
+                        get: { checklistDrafts[project.id] ?? "" },
+                        set: { checklistDrafts[project.id] = $0 }))
+                        .textFieldStyle(.plain)
+                        .font(.callout)
+                        .onSubmit { commitChecklist(project) }
+                }
+                .padding(.horizontal, 7).padding(.vertical, 3)
+            }
+        }
+        .padding(.leading, 24)
+        .padding(.bottom, 3)
+    }
+
+    private func commitChecklist(_ project: Project) {
+        model.addChecklistItem(checklistDrafts[project.id] ?? "", to: project)
+        checklistDrafts[project.id] = ""
     }
 
     /// Inline 8×2 grid of the curated glyphs, tinted to the project color; tap to set.
@@ -157,6 +227,7 @@ struct MenuBarListView: View {
         let isCurrent = model.currentProject?.id == project.id
         let links = project.blueprint.links
         let hovered = hoveredRowID == project.id
+        let canExpand = !links.isEmpty || !project.blueprint.checklist.isEmpty
 
         HStack(spacing: 6) {
             Button { model.enter(project) } label: {
@@ -214,8 +285,8 @@ struct MenuBarListView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(links.isEmpty)
-            .opacity(links.isEmpty ? 0.25 : 1)
+            .disabled(!canExpand)
+            .opacity(canExpand ? 1 : 0.25)
 
             Menu {
                         Button("Bring up here") { model.bringUpApps(project) }
