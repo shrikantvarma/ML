@@ -10,6 +10,8 @@ typealias CGSConnectionID = Int32
 
 private typealias MainConnFn = @convention(c) () -> CGSConnectionID
 private typealias CopyManagedDisplaySpacesFn = @convention(c) (CGSConnectionID) -> Unmanaged<CFArray>?
+private typealias GetActiveSpaceFn = @convention(c) (CGSConnectionID) -> Int
+private typealias SetCurrentSpaceFn = @convention(c) (CGSConnectionID, CFString, Int) -> Void
 
 struct SpaceInfo {
     let uuid: String
@@ -36,6 +38,26 @@ enum CGS {
 
     private static let mainConn = sym("CGSMainConnectionID", as: MainConnFn.self)
     private static let copyManaged = sym("CGSCopyManagedDisplaySpaces", as: CopyManagedDisplaySpacesFn.self)
+    // Multi-display switch (Approach A — spike-gated PASS on macOS 26.4.1).
+    private static let getActiveSpace = sym("CGSGetActiveSpace", as: GetActiveSpaceFn.self)
+    private static let setCurrentSpace = sym("CGSManagedDisplaySetCurrentSpace", as: SetCurrentSpaceFn.self)
+
+    /// Managed id of the globally-active space (the space on the FOCUSED display).
+    /// nil if the symbol is unavailable. The spike confirmed this equals a known
+    /// `managedSpaceID`, so callers resolve it to a UUID across displays.
+    static func activeSpaceID() -> Int? {
+        guard let conn = connectionID, let fn = getActiveSpace else { return nil }
+        return fn(conn)
+    }
+
+    /// Direct-switch `displayID`'s current space to `spaceID` (no Ctrl+N). Returns
+    /// false if the symbol is unavailable — caller must verify the landing.
+    @discardableResult
+    static func directSetCurrentSpace(displayID: String, spaceID: Int64) -> Bool {
+        guard let conn = connectionID, let fn = setCurrentSpace else { return false }
+        fn(conn, displayID as CFString, Int(spaceID))
+        return true
+    }
 
     static var symbolsAvailable: Bool { mainConn != nil && copyManaged != nil }
     static var connectionID: CGSConnectionID? { mainConn?() }

@@ -45,7 +45,7 @@ final class AppModel: ObservableObject {
     var isReady: Bool { accessibilityReady && shortcutsReady }
 
     init() {
-        engine = RealDesktopEngine(spaces: CGSSpacesProvider())
+        engine = DirectSwitchEngine(spaces: CGSSpacesProvider())
         projects = store.projects; recomputeCurrent()
         previousSpaceUUID = spaces.currentSpaceUUID()
         orderedSnapshot = spaces.orderedUserSpaceUUIDs()
