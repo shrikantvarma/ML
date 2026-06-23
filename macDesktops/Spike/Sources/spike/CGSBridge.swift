@@ -9,6 +9,8 @@ typealias CGSConnectionID = Int32
 
 private typealias MainConnFn = @convention(c) () -> CGSConnectionID
 private typealias CopyManagedDisplaySpacesFn = @convention(c) (CGSConnectionID) -> Unmanaged<CFArray>?
+private typealias GetActiveSpaceFn = @convention(c) (CGSConnectionID) -> Int
+private typealias SetCurrentSpaceFn = @convention(c) (CGSConnectionID, CFString, Int) -> Void
 
 /// One macOS desktop / Space as reported by the WindowServer.
 struct SpaceInfo {
@@ -38,6 +40,25 @@ enum CGS {
     private static let mainConn = sym("CGSMainConnectionID", as: MainConnFn.self)
     private static let copyManaged = sym("CGSCopyManagedDisplaySpaces", as: CopyManagedDisplaySpacesFn.self)
 
+    // Part 2 candidates — probed by the spike, NOT yet used by the app.
+    private static let getActiveSpace = sym("CGSGetActiveSpace", as: GetActiveSpaceFn.self)
+    private static let setCurrentSpace = sym("CGSManagedDisplaySetCurrentSpace", as: SetCurrentSpaceFn.self)
+
+    /// Globally-active space id (the space on the focused display). nil if symbol absent.
+    static func activeSpaceID() -> Int? {
+        guard let conn = connectionID, let fn = getActiveSpace else { return nil }
+        return fn(conn)
+    }
+
+    /// Attempt a DIRECT switch (no Ctrl+N) of `displayID`'s current space to `spaceID`.
+    /// Returns false if the symbol is unavailable. Landing must be VERIFIED by the caller.
+    @discardableResult
+    static func directSetCurrentSpace(displayID: String, spaceID: Int64) -> Bool {
+        guard let conn = connectionID, let fn = setCurrentSpace else { return false }
+        fn(conn, displayID as CFString, Int(spaceID))
+        return true
+    }
+
     /// Spike step 1: which private symbols actually resolve on this OS.
     static func diagnostics() -> String {
         var lines: [String] = []
@@ -49,6 +70,8 @@ enum CGS {
         }
         lines.append("CGSMainConnectionID:          \(mainConn != nil ? "found" : "MISSING")")
         lines.append("CGSCopyManagedDisplaySpaces:  \(copyManaged != nil ? "found" : "MISSING")")
+        lines.append("CGSGetActiveSpace:            \(getActiveSpace != nil ? "found" : "MISSING")")
+        lines.append("CGSManagedDisplaySetCurrentSpace: \(setCurrentSpace != nil ? "found" : "MISSING")")
         if let cid = connectionID { lines.append("WindowServer connection id:   \(cid)") }
         return lines.joined(separator: "\n")
     }

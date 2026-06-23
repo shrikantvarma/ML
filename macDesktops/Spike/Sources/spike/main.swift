@@ -177,6 +177,70 @@ func cmdShowBinding() {
     """)
 }
 
+func cmdActiveSpaceProbe() {
+    guard let active = CGS.activeSpaceID() else {
+        print("CGSGetActiveSpace MISSING — focused-display read unavailable (Part 2 must use a fallback).")
+        return
+    }
+    print("CGSGetActiveSpace → \(active)")
+    guard let displays = CGS.managedDisplaySpaces() else { print("no displays"); return }
+    var matched = false
+    for (di, d) in displays.enumerated() {
+        for s in d.spaces where Int(s.managedSpaceID) == active {
+            print("  ✓ matches Display \(di) space \(short(s.uuid)) (managedSpaceID \(s.managedSpaceID))")
+            matched = true
+        }
+    }
+    if !matched { print("  ✗ no managedSpaceID matched \(active) — active-id is a DIFFERENT id space; record this.") }
+}
+
+/// Apps with a normal (layer-0) window currently composited ON SCREEN. A real
+/// visible space switch changes this set (windows appear/disappear); the internal
+/// "current space" record updating alone does not. Owner names need no screen-
+/// recording permission. This is the decisive, no-eyeball switch signal.
+func onScreenApps() -> Set<String> {
+    let opts: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+    guard let arr = CGWindowListCopyWindowInfo(opts, kCGNullWindowID) as? [[String: Any]] else { return [] }
+    return Set(arr.compactMap { w -> String? in
+        guard (w[kCGWindowLayer as String] as? Int) == 0 else { return nil }
+        return w[kCGWindowOwnerName as String] as? String
+    })
+}
+
+func cmdDirectSwitch() {
+    guard let displays = CGS.managedDisplaySpaces() else { print("no displays"); return }
+    // Pick ANY desktop by <display>.<space> — no binding, no "current", no focus
+    // dependency. Keep the Terminal on one screen and target a desktop on the OTHER.
+    print("DIRECT-switch — pick a desktop as <display>.<space> (e.g. 1.2):")
+    for (di, d) in displays.enumerated() {
+        for (si, s) in d.userSpaces.enumerated() {
+            let mark = (s.uuid == d.currentSpaceUUID) ? "  *current*" : ""
+            print("  \(di).\(si + 1)  \(short(s.uuid))  id=\(s.managedSpaceID)\(mark)")
+        }
+    }
+    print("> ", terminator: ""); fflush(stdout)
+    let parts = (readLine() ?? "").split(separator: ".").compactMap { Int($0) }
+    guard parts.count == 2, parts[0] >= 0, parts[0] < displays.count else { print("bad input — use <display>.<space>"); return }
+    let d = displays[parts[0]]
+    let userSpaces = d.userSpaces
+    guard parts[1] >= 1, parts[1] <= userSpaces.count else { print("bad space index for that display"); return }
+    let s = userSpaces[parts[1] - 1]
+    print("Direct-switching Display \(parts[0]) ('\(d.displayIdentifier)') → \(short(s.uuid)) (id \(s.managedSpaceID))…")
+    let before = onScreenApps()
+    let ok = CGS.directSetCurrentSpace(displayID: d.displayIdentifier, spaceID: s.managedSpaceID)
+    guard ok else { print("  ✗ CGSManagedDisplaySetCurrentSpace MISSING — Approach A not possible (use Approach B)."); return }
+    usleep(400_000)
+    let after = onScreenApps()
+    let nowCurrent = CGS.managedDisplaySpaces()?.first(where: { $0.displayIdentifier == d.displayIdentifier })?.currentSpaceUUID
+    print("  internal current: \(nowCurrent == s.uuid ? "✓ updated to target" : "✗ NOT updated") (\(nowCurrent.map(short) ?? "?"))")
+    let appeared = after.subtracting(before), gone = before.subtracting(after)
+    if appeared.isEmpty && gone.isEmpty {
+        print("  on-screen apps UNCHANGED → screen did NOT visibly switch (failure mode).")
+    } else {
+        print("  ✓ VISIBLE SWITCH — appeared: \(appeared.sorted()); disappeared: \(gone.sorted())")
+    }
+}
+
 // --- menu loop -------------------------------------------------------------
 
 func printMenu() {
@@ -190,6 +254,8 @@ func printMenu() {
     5  run N round-trips → success rate + latency
     6  failure-mode checks (secure input / shortcut / accessibility)
     7  show persisted binding (run after reboot to test UUID survival)
+    8  DIRECT-switch to a picked desktop via CGS (no Ctrl+N) — Approach A probe
+    9  probe active space (CGSGetActiveSpace) vs per-display current
     q  quit
     (space-change events print automatically as you add/remove/reorder desktops)
     """)
@@ -209,6 +275,8 @@ func menuLoop() {
         case "5": cmdRunN()
         case "6": cmdFailureChecks()
         case "7": cmdShowBinding()
+        case "8": cmdDirectSwitch()
+        case "9": cmdActiveSpaceProbe()
         case "q", "quit", "exit":
             print("bye"); CFRunLoopStop(CFRunLoopGetMain()); return
         case "": continue
