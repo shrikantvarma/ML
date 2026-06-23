@@ -12,7 +12,6 @@ struct MenuBarListView: View {
     /// Which project rows show their links inline. The current project auto-expands
     /// (seeded onAppear); others start collapsed to keep the list short (U5).
     @State private var expandedIDs: Set<UUID> = []
-    @State private var didSeedExpansion = false
     /// Inline "Add link" form state (U6), mirroring the rename-field pattern.
     @State private var addingLinkID: UUID?
     @State private var newLinkURL = ""
@@ -86,12 +85,9 @@ struct MenuBarListView: View {
         .frame(width: 320)
         .onAppear {
             model.refreshPermissions()   // re-check whenever the popover opens
-            // Auto-expand the current project once — re-seeding every open would
-            // re-expand a row the user deliberately collapsed.
-            if !didSeedExpansion, let cur = model.currentProject?.id {
-                expandedIDs.insert(cur); didSeedExpansion = true
-            }
+            ensureCurrentExpanded()
         }
+        .onChange(of: model.currentProject?.id) { _, _ in ensureCurrentExpanded() }
     }
 
     @ViewBuilder
@@ -114,10 +110,16 @@ struct MenuBarListView: View {
             }
             if renamingID != project.id && addingLinkID != project.id
                 && iconPickingID != project.id && expandedIDs.contains(project.id) {
-                if !project.blueprint.links.isEmpty { linksBlock(project) }
+                linksBlock(project)
                 checklistBlock(project)
             }
         }
+    }
+
+    /// Keep the current project's row expanded so "what's next here" is visible the
+    /// moment the popover opens.
+    private func ensureCurrentExpanded() {
+        if let cur = model.currentProject?.id { expandedIDs.insert(cur) }
     }
 
     /// The project's "what's next" checklist: toggleable items + an always-present
@@ -227,7 +229,6 @@ struct MenuBarListView: View {
         let isCurrent = model.currentProject?.id == project.id
         let links = project.blueprint.links
         let hovered = hoveredRowID == project.id
-        let canExpand = !links.isEmpty || !project.blueprint.checklist.isEmpty
 
         HStack(spacing: 6) {
             Button { model.enter(project) } label: {
@@ -275,7 +276,8 @@ struct MenuBarListView: View {
                     .help("\(links.count) link\(links.count == 1 ? "" : "s")")
             }
 
-            // Chevron is the SOLE expand/collapse control (non-interactive when empty).
+            // Chevron is the SOLE expand/collapse control — always available so an
+            // empty project can be opened to add its first link / next-step.
             Button { toggleExpanded(project.id) } label: {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 9, weight: .semibold))
@@ -285,8 +287,6 @@ struct MenuBarListView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(!canExpand)
-            .opacity(canExpand ? 1 : 0.25)
 
             Menu {
                         Button("Bring up here") { model.bringUpApps(project) }
@@ -377,40 +377,41 @@ struct MenuBarListView: View {
         .padding(.vertical, 2)
     }
 
-    /// The inline links revealed under an expanded project row (U5).
+    /// The inline links revealed under an expanded project row (U5): links + an
+    /// always-present "+ add link…" entry so authoring is discoverable inline.
     @ViewBuilder
     private func linksBlock(_ project: Project) -> some View {
         let links = project.blueprint.links
-        if links.isEmpty {
-            Text("No links yet — add one with ••• ▸ Add link…")
-                .font(.caption2).foregroundStyle(.secondary)
-                .padding(.leading, 26).padding(.bottom, 2)
-        } else {
-            HStack(alignment: .top, spacing: 8) {
-                // The mock's indent rail down the inline links.
-                RoundedRectangle(cornerRadius: 1).fill(Palette.rail).frame(width: 2)
-                VStack(alignment: .leading, spacing: 1) {
-                    ForEach(links) { link in
-                        Button { model.openLink(link, in: project) } label: {
-                            HStack(spacing: 8) {
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(faviconColor(link))
-                                    .frame(width: 14, height: 14)
-                                Text(link.title.isEmpty ? link.url : link.title)
-                                    .font(.callout).lineLimit(1)
-                                Spacer()
-                            }
-                            .padding(.horizontal, 7).padding(.vertical, 4)
-                            .background(RoundedRectangle(cornerRadius: 6)
-                                .fill(hoveredLinkID == link.id ? Palette.hover : Color.clear))
-                            .contentShape(Rectangle())
+        HStack(alignment: .top, spacing: 8) {
+            RoundedRectangle(cornerRadius: 1).fill(Palette.rail).frame(width: 2)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("LINKS").font(.system(size: 9.5, weight: .semibold))
+                    .foregroundStyle(.secondary).tracking(0.5)
+                    .padding(.horizontal, 7).padding(.bottom, 1)
+
+                ForEach(links) { link in
+                    Button { model.openLink(link, in: project) } label: {
+                        HStack(spacing: 8) {
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(faviconColor(link))
+                                .frame(width: 14, height: 14)
+                            Text(link.title.isEmpty ? link.url : link.title)
+                                .font(.callout).lineLimit(1)
+                            Spacer()
                         }
-                        .buttonStyle(.plain)
-                        .onHover { inside in
-                            hoveredLinkID = inside ? link.id : (hoveredLinkID == link.id ? nil : hoveredLinkID)
-                        }
-                        .help(link.url)
+                        .padding(.horizontal, 7).padding(.vertical, 4)
+                        .background(RoundedRectangle(cornerRadius: 6)
+                            .fill(hoveredLinkID == link.id ? Palette.hover : Color.clear))
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
+                    .onHover { inside in
+                        hoveredLinkID = inside ? link.id : (hoveredLinkID == link.id ? nil : hoveredLinkID)
+                    }
+                    .help(link.url)
+                }
+
+                if !links.isEmpty {
                     Button { model.openLinks(project) } label: {
                         HStack(spacing: 7) {
                             Image(systemName: "rectangle.stack.badge.play").font(.caption)
@@ -428,10 +429,23 @@ struct MenuBarListView: View {
                         hoveredOpenAllID = inside ? project.id : (hoveredOpenAllID == project.id ? nil : hoveredOpenAllID)
                     }
                 }
+
+                // Always-present inline add (web / Obsidian / file link).
+                Button { beginAddLink(project) } label: {
+                    HStack(spacing: 7) {
+                        Image(systemName: "plus.circle").font(.system(size: 13))
+                        Text("add link…").font(.callout)
+                        Spacer()
+                    }
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 7).padding(.vertical, 3)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
-            .padding(.leading, 24)
-            .padding(.bottom, 3)
         }
+        .padding(.leading, 24)
+        .padding(.bottom, 3)
     }
 
     /// Curated identity palette for project tiles — chosen to stay distinct and calm.
