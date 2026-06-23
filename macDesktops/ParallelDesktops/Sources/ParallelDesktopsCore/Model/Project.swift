@@ -23,31 +23,48 @@ public struct Link: Identifiable, Codable, Equatable {
     }
 }
 
-/// The set of apps that define a project, its passively-recorded frames, and the
-/// project's ordered links. `links` is additive and migration-safe: existing
-/// `projects.json` files (no `links` key) decode without a schemaVersion bump (KTD1).
+/// A short "what's next" item for a project — flat text + a done toggle (plan U1).
+/// Real notes live in the linked tool; this is the glanceable next-actions list.
+public struct ChecklistItem: Identifiable, Codable, Equatable {
+    public var id: UUID
+    public var text: String
+    public var done: Bool
+    public init(id: UUID = UUID(), text: String, done: Bool = false) {
+        self.id = id
+        self.text = text
+        self.done = done
+    }
+}
+
+/// The set of apps that define a project, its passively-recorded frames, the
+/// project's ordered links, and its next-actions checklist. `links` and `checklist`
+/// are additive and migration-safe: existing `projects.json` files (no key) decode
+/// without a schemaVersion bump (KTD1).
 public struct Blueprint: Codable, Equatable {
     public var bundleIDs: [String]
     public var frames: [String: WindowFrame]   // bundleID → last frame
     public var links: [Link]                   // ordered; array order is user order
+    public var checklist: [ChecklistItem]      // ordered next-actions
     public init(bundleIDs: [String] = [], frames: [String: WindowFrame] = [:],
-                links: [Link] = []) {
+                links: [Link] = [], checklist: [ChecklistItem] = []) {
         self.bundleIDs = bundleIDs
         self.frames = frames
         self.links = links
+        self.checklist = checklist
     }
 
-    private enum CodingKeys: String, CodingKey { case bundleIDs, frames, links }
+    private enum CodingKeys: String, CodingKey { case bundleIDs, frames, links, checklist }
 
     // Custom decode because synthesized Decodable ignores property defaults and would
-    // throw keyNotFound on an old file with no `links` key. `decodeIfPresent ?? []`
-    // makes a missing key a migration (→ []) while a present-but-malformed value still
-    // throws (→ the store quarantines it). encode(to:) stays synthesized.
+    // throw keyNotFound on an old file with no `links`/`checklist` key. `decodeIfPresent
+    // ?? []` makes a missing key a migration (→ []) while a present-but-malformed value
+    // still throws (→ the store quarantines it). encode(to:) stays synthesized.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         self.bundleIDs = try c.decode([String].self, forKey: .bundleIDs)
         self.frames = try c.decode([String: WindowFrame].self, forKey: .frames)
         self.links = try c.decodeIfPresent([Link].self, forKey: .links) ?? []
+        self.checklist = try c.decodeIfPresent([ChecklistItem].self, forKey: .checklist) ?? []
     }
 }
 

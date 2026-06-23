@@ -515,4 +515,82 @@ final class ProjectStoreTests: XCTestCase {
         XCTAssertNotEqual(Link(id: id, url: "https://x.com", title: "X"),
                           Link(id: id, url: "https://y.com", title: "X"))
     }
+
+    // MARK: U1 — checklist persistence and migration safety
+
+    func testChecklistRoundTrip() throws {
+        let url = tempURL(); defer { try? FileManager.default.removeItem(at: url) }
+        let items = [ChecklistItem(text: "Reply to investor", done: true),
+                     ChecklistItem(text: "Ship link fix", done: false)]
+        let store = ProjectStore(url: url)
+        try store.add(Project(name: "Comms", spaceUUID: "U1",
+                              blueprint: Blueprint(checklist: items)))
+        let reopened = ProjectStore(url: url)
+        let cl = try XCTUnwrap(reopened.projects.first).blueprint.checklist
+        XCTAssertEqual(cl.map(\.text), ["Reply to investor", "Ship link fix"], "order preserved")
+        XCTAssertEqual(cl.map(\.done), [true, false], "done flags preserved")
+    }
+
+    /// Migration (KTD1): an existing file with no `checklist` key decodes to [] — not quarantined.
+    func testMissingChecklistKeyDecodesToDefaultsNotQuarantined() throws {
+        let url = tempURL(); defer {
+            try? FileManager.default.removeItem(at: url)
+            try? FileManager.default.removeItem(at: url.appendingPathExtension("corrupt"))
+        }
+        let legacy = """
+        {
+          "schemaVersion": 1,
+          "projects": [
+            {
+              "id": "\(UUID().uuidString)",
+              "name": "Legacy",
+              "spaceUUID": "U1",
+              "blueprint": { "bundleIDs": ["com.a"], "frames": {}, "links": [] },
+              "resume": {},
+              "drifted": false
+            }
+          ]
+        }
+        """
+        try legacy.data(using: .utf8)!.write(to: url)
+        let store = ProjectStore(url: url)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.appendingPathExtension("corrupt").path),
+                       "a missing checklist key is a migration, not corruption")
+        XCTAssertEqual(try XCTUnwrap(store.projects.first).blueprint.checklist, [])
+    }
+
+    func testMalformedChecklistValueIsQuarantined() throws {
+        let url = tempURL(); defer {
+            try? FileManager.default.removeItem(at: url)
+            try? FileManager.default.removeItem(at: url.appendingPathExtension("corrupt"))
+        }
+        let bad = """
+        {
+          "schemaVersion": 1,
+          "projects": [
+            {
+              "id": "\(UUID().uuidString)",
+              "name": "Bad",
+              "spaceUUID": "U1",
+              "blueprint": { "bundleIDs": [], "frames": {}, "checklist": "not-an-array" },
+              "resume": {},
+              "drifted": false
+            }
+          ]
+        }
+        """
+        try bad.data(using: .utf8)!.write(to: url)
+        let store = ProjectStore(url: url)
+        XCTAssertTrue(store.projects.isEmpty)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.appendingPathExtension("corrupt").path),
+                      "present-but-malformed checklist must quarantine, not silently default")
+    }
+
+    func testChecklistItemEquatable() {
+        let id = UUID()
+        XCTAssertEqual(ChecklistItem(id: id, text: "A", done: false),
+                       ChecklistItem(id: id, text: "A", done: false))
+        XCTAssertNotEqual(ChecklistItem(id: id, text: "A", done: false),
+                          ChecklistItem(id: id, text: "A", done: true))
+    }
 }
