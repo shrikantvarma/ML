@@ -225,11 +225,20 @@ final class BrowserLauncherTests: XCTestCase {
         XCTAssertTrue(LinkURL.isAllowed("https://x.com"))
         XCTAssertTrue(LinkURL.isAllowed("http://x.com"))
         XCTAssertTrue(LinkURL.isAllowed("HTTPS://x.com"))
-        XCTAssertFalse(LinkURL.isAllowed("file:///etc/hosts"))
+        XCTAssertTrue(LinkURL.isAllowed("obsidian://open?vault=v&file=f"))  // notes doc (U2)
+        XCTAssertTrue(LinkURL.isAllowed("file:///Users/me/notes.md"))       // local doc (U2)
         XCTAssertFalse(LinkURL.isAllowed("javascript:alert(1)"))
         XCTAssertFalse(LinkURL.isAllowed("x-apple.systempreferences://x"))
         XCTAssertFalse(LinkURL.isAllowed("x.com"))
         XCTAssertFalse(LinkURL.isAllowed(""))
+    }
+
+    func testIsWeb() {
+        XCTAssertTrue(LinkURL.isWeb("https://x.com"))
+        XCTAssertTrue(LinkURL.isWeb("http://x.com"))
+        XCTAssertFalse(LinkURL.isWeb("obsidian://open?vault=v"))  // allowed but non-web
+        XCTAssertFalse(LinkURL.isWeb("file:///a/b.md"))
+        XCTAssertFalse(LinkURL.isWeb("x.com"))
     }
 }
 
@@ -266,8 +275,19 @@ final class LinkOpenPlanTests: XCTestCase {
     func testURLsFilteredAndOrderPreserved() {
         let p = project(space: "S1", profile: nil, links: [])
         let plan = LinkOpenPlan.make(project: p, currentSpaceUUID: "S1",
-                                     urls: ["https://a.com", "file:///etc/hosts", "https://b.com"])
+                                     urls: ["https://a.com", "javascript:alert(1)", "https://b.com"])
         XCTAssertEqual(plan.urls, ["https://a.com", "https://b.com"], "disallowed schemes dropped, order kept")
+    }
+
+    func testWebAndNonWebPartition() {
+        // Allowed schemes split: web → urls (Chrome recipe), obsidian/file → nonWebURLs (NSWorkspace).
+        let p = project(space: "S1", profile: nil, links: [])
+        let plan = LinkOpenPlan.make(project: p, currentSpaceUUID: "S1",
+                                     urls: ["https://a.com", "obsidian://open?file=note", "file:///a/b.md",
+                                            "javascript:bad"])
+        XCTAssertEqual(plan.urls, ["https://a.com"], "only web links get the desktop-placement recipe")
+        XCTAssertEqual(plan.nonWebURLs, ["obsidian://open?file=note", "file:///a/b.md"],
+                       "obsidian/file route to NSWorkspace; disallowed scheme dropped entirely")
     }
 
     func testEmptyLinksEmptyPlan() {

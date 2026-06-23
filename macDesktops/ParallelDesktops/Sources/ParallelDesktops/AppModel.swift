@@ -330,29 +330,42 @@ final class AppModel: ObservableObject {
                                      currentSpaceUUID: spaces.currentSpaceUUID(),
                                      urls: rawURLs,
                                      chromeFallbackFolder: chromeLastUsedFolder)
-        guard !plan.urls.isEmpty else { return .noLinks }
+        guard !plan.urls.isEmpty || !plan.nonWebURLs.isEmpty else { return .noLinks }
 
-        var bounced = false
         if plan.needsSwitch {
             let result = await engine.switch(toSpaceUUID: project.spaceUUID)
             guard case .switched = result else { return .switchFailed(result) }
             try? await Task.sleep(nanoseconds: Self.linkSettleNanos)
-            bounced = plan.profileFolder == nil   // only the no-profile path risks a bounce
         }
 
-        if let folder = plan.profileFolder {
-            let urls = plan.urls
-            // Run the blocking Process (waitUntilExit) off the main actor so the
-            // menu-bar UI never freezes if `open`/Chrome is slow.
-            let ok = await Task.detached { [urlOpener] in
-                urlOpener.openChrome(profileFolder: folder, urls: urls)
-            }.value
-            return ok ? .opened(urls.count, bounced: false) : .chromeFailed
-        } else {
-            var opened = 0
-            for url in plan.urls where urlOpener.openDefault(url: url) { opened += 1 }
-            return opened > 0 ? .opened(opened, bounced: bounced) : .defaultFailed
+        var opened = 0
+        var chromeFailed = false
+
+        // Web links: Chrome profile recipe (placed on this desktop) or the default browser.
+        if !plan.urls.isEmpty {
+            if let folder = plan.profileFolder {
+                let urls = plan.urls
+                // Run the blocking Process (waitUntilExit) off the main actor so the
+                // menu-bar UI never freezes if `open`/Chrome is slow.
+                let ok = await Task.detached { [urlOpener] in
+                    urlOpener.openChrome(profileFolder: folder, urls: urls)
+                }.value
+                if ok { opened += plan.urls.count } else { chromeFailed = true }
+            } else {
+                for url in plan.urls where urlOpener.openDefault(url: url) { opened += 1 }
+            }
         }
+
+        // Non-web links (obsidian://, file://): NSWorkspace routes Obsidian/Finder's window.
+        for url in plan.nonWebURLs where urlOpener.openDefault(url: url) { opened += 1 }
+
+        if opened > 0 {
+            // The bounce note applies only to web links opened via the default browser
+            // on a cold switch — not to Obsidian/file opens.
+            let bounced = plan.needsSwitch && plan.profileFolder == nil && !plan.urls.isEmpty
+            return .opened(opened, bounced: bounced)
+        }
+        return chromeFailed ? .chromeFailed : .defaultFailed
     }
 
     private func statusForLinkOpen(_ project: Project, _ outcome: LinkOpenOutcome) -> String {

@@ -1,11 +1,20 @@
 import Foundation
 import AppKit
 
-/// URL safety gate (KTD8). Only http/https links may be opened — a pasted or
-/// synced `file://`, `javascript:`, or custom-scheme string must never reach
-/// `open`/`NSWorkspace`, which would launch an unintended/privileged handler.
+/// URL safety gate. Allowed schemes are `http`/`https` (web pages, placed on the
+/// project's desktop via the Chrome recipe) plus `obsidian`/`file` (the project's
+/// notes doc, opened via `NSWorkspace`). Any other scheme (`javascript:`, custom
+/// app schemes) is rejected so it never reaches `open`/`NSWorkspace`.
 public enum LinkURL {
     public static func isAllowed(_ raw: String) -> Bool {
+        guard let scheme = URLComponents(string: raw)?.scheme?.lowercased() else { return false }
+        return scheme == "http" || scheme == "https" || scheme == "obsidian" || scheme == "file"
+    }
+
+    /// Web schemes get the switch→settle→Chrome-profile placement recipe. Non-web
+    /// allowed schemes (`obsidian`, `file`) open via `NSWorkspace` — Obsidian/Finder
+    /// route their own window; the desktop-placement recipe doesn't apply.
+    public static func isWeb(_ raw: String) -> Bool {
         guard let scheme = URLComponents(string: raw)?.scheme?.lowercased() else { return false }
         return scheme == "http" || scheme == "https"
     }

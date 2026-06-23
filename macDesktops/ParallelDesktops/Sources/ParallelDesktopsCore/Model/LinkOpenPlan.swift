@@ -7,12 +7,14 @@ import Foundation
 public struct LinkOpenPlan: Equatable {
     public var needsSwitch: Bool
     public var profileFolder: String?
-    public var urls: [String]
+    public var urls: [String]          // web (http/https) → Chrome/default recipe, placed on the desktop
+    public var nonWebURLs: [String]    // obsidian:// / file:// → NSWorkspace.open (routes its own window)
 
-    public init(needsSwitch: Bool, profileFolder: String?, urls: [String]) {
+    public init(needsSwitch: Bool, profileFolder: String?, urls: [String], nonWebURLs: [String] = []) {
         self.needsSwitch = needsSwitch
         self.profileFolder = profileFolder
         self.urls = urls
+        self.nonWebURLs = nonWebURLs
     }
 
     /// Build the plan from the live Space and the project's settings. `urls` is the
@@ -28,10 +30,12 @@ public struct LinkOpenPlan: Equatable {
                             chromeFallbackFolder: String? = nil) -> LinkOpenPlan {
         let explicit = project.chromeProfileFolder.flatMap { ChromeProfiles.isValidFolder($0) ? $0 : nil }
         let fallback = chromeFallbackFolder.flatMap { ChromeProfiles.isValidFolder($0) ? $0 : nil }
+        let allowed = urls.filter(LinkURL.isAllowed)
         return LinkOpenPlan(
             needsSwitch: currentSpaceUUID != project.spaceUUID,
             profileFolder: explicit ?? fallback,
-            urls: urls.filter(LinkURL.isAllowed)
+            urls: allowed.filter(LinkURL.isWeb),
+            nonWebURLs: allowed.filter { !LinkURL.isWeb($0) }
         )
     }
 }
