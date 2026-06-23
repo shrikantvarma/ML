@@ -8,9 +8,16 @@ public protocol SpacesProvider {
     func orderedUserSpaceUUIDs() -> [String]
     /// UUID of the currently-active desktop, if known.
     func currentSpaceUUID() -> String?
+    /// Union of user-desktop UUIDs across ALL displays. A desktop moved to a
+    /// second screen is still "present" here — so it is NOT drift (multi-display).
+    func allUserSpaceUUIDs() -> [String]
 }
 
 public extension SpacesProvider {
+    /// Default: single-display behaviour. `CGSSpacesProvider` overrides with the
+    /// real cross-display union; existing single-display fakes inherit this.
+    func allUserSpaceUUIDs() -> [String] { orderedUserSpaceUUIDs() }
+
     /// 1-based ordinal of `uuid` within the ordered user spaces — the index the
     /// Control+N shortcut targets. nil ⇒ the bound desktop is gone (drift).
     /// KTD-2: resolve at switch time, never cache.
@@ -28,5 +35,8 @@ public struct CGSSpacesProvider: SpacesProvider {
     }
     public func currentSpaceUUID() -> String? {
         CGS.primaryDisplay()?.currentSpaceUUID
+    }
+    public func allUserSpaceUUIDs() -> [String] {
+        CGS.allDisplays().flatMap { $0.userSpaces.map { $0.uuid } }
     }
 }

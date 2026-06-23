@@ -399,6 +399,38 @@ final class DriftDetectorTests: XCTestCase {
     }
 }
 
+// MARK: - Multi-display read (drift across displays)
+
+final class FakeMultiDisplaySpaces: SpacesProvider {
+    let perDisplay: [[String]]   // perDisplay[0] = "primary"
+    let current: String?
+    init(perDisplay: [[String]], current: String?) { self.perDisplay = perDisplay; self.current = current }
+    func orderedUserSpaceUUIDs() -> [String] { perDisplay.first ?? [] }
+    func currentSpaceUUID() -> String? { current }
+    func allUserSpaceUUIDs() -> [String] { perDisplay.flatMap { $0 } }
+}
+
+final class MultiDisplaySpacesTests: XCTestCase {
+    func testAllUserSpaceUUIDsUnionsAcrossDisplays() {
+        let s = FakeMultiDisplaySpaces(perDisplay: [["A", "B"], ["C", "D"]], current: "A")
+        XCTAssertEqual(Set(s.allUserSpaceUUIDs()), ["A", "B", "C", "D"])
+    }
+    func testSpaceMovedToSecondaryDisplayIsNotDrifted() {
+        // "C" now lives on display 2; bound A and C must NOT be flagged drifted.
+        let s = FakeMultiDisplaySpaces(perDisplay: [["A", "B"], ["C"]], current: "A")
+        XCTAssertEqual(DriftDetector.driftedUUIDs(bound: ["A", "C"], in: s.allUserSpaceUUIDs()), [])
+    }
+    func testTrulyDeletedSpaceStillDrifts() {
+        let s = FakeMultiDisplaySpaces(perDisplay: [["A"], ["C"]], current: "A")
+        XCTAssertEqual(DriftDetector.driftedUUIDs(bound: ["A", "Z"], in: s.allUserSpaceUUIDs()), ["Z"])
+    }
+    func testDefaultAllUserSpacesFallsBackToOrdered() {
+        // The existing single-display fake gets the union for free via the default impl.
+        let s = FakeSpaces(ordered: ["A", "B"], current: "A")
+        XCTAssertEqual(s.allUserSpaceUUIDs(), ["A", "B"])
+    }
+}
+
 // MARK: - ProjectStore (U6 / KTD-6)
 
 final class ProjectStoreTests: XCTestCase {

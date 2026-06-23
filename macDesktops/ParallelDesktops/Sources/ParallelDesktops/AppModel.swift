@@ -151,7 +151,11 @@ final class AppModel: ObservableObject {
     private func recomputeDrift() {
         let ordered = spaces.orderedUserSpaceUUIDs()
         orderedSnapshot = ordered
-        let drifted = Set(DriftDetector.driftedUUIDs(bound: projects.map { $0.spaceUUID }, in: ordered))
+        // Drift = bound desktop absent from EVERY display (truly deleted), not merely
+        // moved to another screen. Using the cross-display union fixes the false
+        // "desktop moved — Recalibrate" flag on multi-display setups.
+        let present = spaces.allUserSpaceUUIDs()
+        let drifted = Set(DriftDetector.driftedUUIDs(bound: projects.map { $0.spaceUUID }, in: present))
         for i in projects.indices where projects[i].drifted != drifted.contains(projects[i].spaceUUID) {
             projects[i].drifted = drifted.contains(projects[i].spaceUUID)
             store.update(projects[i])

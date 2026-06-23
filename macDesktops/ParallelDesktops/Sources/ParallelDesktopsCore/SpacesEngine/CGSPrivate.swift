@@ -60,4 +60,7 @@ enum CGS {
 
     /// Primary display only (v1 scope per plan Risk R-4).
     static func primaryDisplay() -> DisplaySpaces? { managedDisplaySpaces()?.first }
+
+    /// All displays with their ordered Spaces (empty if a symbol is unavailable).
+    static func allDisplays() -> [DisplaySpaces] { managedDisplaySpaces() ?? [] }
 }
