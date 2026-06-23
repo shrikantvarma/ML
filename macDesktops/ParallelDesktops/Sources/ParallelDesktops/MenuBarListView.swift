@@ -116,10 +116,10 @@ struct MenuBarListView: View {
         }
     }
 
-    /// Keep the current project's row expanded so "what's next here" is visible the
-    /// moment the popover opens.
+    /// On each open (and on desktop change), expand ONLY the project you're on —
+    /// every other row collapses. Keeps the list short and focused on "here".
     private func ensureCurrentExpanded() {
-        if let cur = model.currentProject?.id { expandedIDs.insert(cur) }
+        expandedIDs = model.currentProject.map { [$0.id] } ?? []
     }
 
     /// The project's "what's next" checklist: toggleable items + an always-present
@@ -390,25 +390,35 @@ struct MenuBarListView: View {
                     .padding(.horizontal, 7).padding(.bottom, 1)
 
                 ForEach(links) { link in
-                    Button { model.openLink(link, in: project) } label: {
-                        HStack(spacing: 8) {
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(faviconColor(link))
-                                .frame(width: 14, height: 14)
-                            Text(link.title.isEmpty ? link.url : link.title)
-                                .font(.callout).lineLimit(1)
-                            Spacer()
+                    HStack(spacing: 7) {
+                        Button { model.openLink(link, in: project) } label: {
+                            HStack(spacing: 8) {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(faviconColor(link))
+                                    .frame(width: 14, height: 14)
+                                Text(link.title.isEmpty ? link.url : link.title)
+                                    .font(.callout).lineLimit(1)
+                                Spacer()
+                            }
+                            .contentShape(Rectangle())
                         }
-                        .padding(.horizontal, 7).padding(.vertical, 4)
-                        .background(RoundedRectangle(cornerRadius: 6)
-                            .fill(hoveredLinkID == link.id ? Palette.hover : Color.clear))
-                        .contentShape(Rectangle())
+                        .buttonStyle(.plain)
+                        .help(link.url)
+                        Button { model.removeLink(link.id, from: project) } label: {
+                            Image(systemName: "xmark").font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .buttonStyle(.plain)
+                        .opacity(hoveredLinkID == link.id ? 1 : 0)
+                        .help("Remove link")
                     }
-                    .buttonStyle(.plain)
+                    .padding(.horizontal, 7).padding(.vertical, 4)
+                    .background(RoundedRectangle(cornerRadius: 6)
+                        .fill(hoveredLinkID == link.id ? Palette.hover : Color.clear))
+                    .contentShape(Rectangle())
                     .onHover { inside in
                         hoveredLinkID = inside ? link.id : (hoveredLinkID == link.id ? nil : hoveredLinkID)
                     }
-                    .help(link.url)
                 }
 
                 if !links.isEmpty {

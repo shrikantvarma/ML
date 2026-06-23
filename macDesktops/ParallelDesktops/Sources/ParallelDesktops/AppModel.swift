@@ -248,6 +248,13 @@ final class AppModel: ObservableObject {
         status = "Added “\(title)” to “\(p.name)”."
     }
 
+    /// Remove a single link from a project.
+    func removeLink(_ id: UUID, from project: Project) {
+        guard var p = projects.first(where: { $0.id == project.id }) else { return }
+        p.blueprint.links.removeAll { $0.id == id }
+        store.update(p); projects = store.projects; recomputeCurrent()
+    }
+
     // MARK: Checklist (U3)
 
     /// Append a next-action to a project's checklist (ignores empty text).
