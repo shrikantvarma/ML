@@ -2,6 +2,7 @@
 title: "Accessing macOS Spaces via private CGS/SkyLight symbols safely"
 module: "macOS Spaces (virtual desktops)"
 date: 2026-06-21
+last_updated: 2026-06-23
 problem_type: tooling_decision
 component: tooling
 severity: medium
@@ -41,6 +42,10 @@ notarization, and is any derived identifier stable enough to persist?
   (changes on reorder) or `ManagedSpaceID` (undocumented). `CGSCopyManagedDisplaySpaces`
   returns, per display, an ordered `Spaces` array with `uuid`, `ManagedSpaceID`,
   and `type` (0 = user desktop), plus a `Current Space`.
+  **Caveat (multi-display):** macOS returns an **empty `uuid`** for some real
+  desktops — seen for desktops churned by dragging between monitors — making them
+  untrackable by UUID. Guard empties out (never bind/match `""`). See
+  [Multi-display macOS Spaces: empty-UUID identity gaps](../architecture-patterns/multi-display-spaces-identity-and-spike-strategy.md).
 
 ## Why This Matters
 
@@ -71,6 +76,13 @@ let fn = dlsym(h, "CGSCopyManagedDisplaySpaces")
 // Persist the project→desktop binding by `uuid` (stable across reboot).
 ```
 
-Caveat: switching to a Space still goes through synthesizing the user's
-"Switch to Desktop N" (Ctrl+number) shortcut (off by default; capped ~9–16);
-the private read API gives you the ordered UUID list to resolve N at switch time.
+Switching, single-display (shipped v1): synthesize the user's "Switch to Desktop N"
+(Ctrl+number) shortcut (off by default; capped ~9–16); the private read API gives
+you the ordered UUID list to resolve N at switch time.
+
+Switching, multi-display: Ctrl+number can only move the *focused* display and its
+numbering is unreliable across separate-Spaces displays. The direct private call
+`CGSManagedDisplaySetCurrentSpace(conn, displayID: CFString, managedSpaceID)` was
+**spike-proven to visibly switch any display (incl. a non-focused secondary)** on
+macOS 26.4.1 — verify the landing by polling each display's current space. See
+[Multi-display macOS Spaces: empty-UUID identity gaps and spiking the messy state](../architecture-patterns/multi-display-spaces-identity-and-spike-strategy.md).
