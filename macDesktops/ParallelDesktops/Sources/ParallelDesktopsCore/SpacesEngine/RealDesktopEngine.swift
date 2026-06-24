@@ -34,10 +34,14 @@ public struct RealDesktopEngine: SwitchEngine {
     }
 
     public func `switch`(toSpaceUUID uuid: String) async -> SwitchResult {
-        guard let index = spaces.resolveIndex(uuid: uuid) else { return .driftDetected }
-        // Already on the target — don't post a key, and don't risk crediting a no-op
-        // (or a concurrent user switch that already landed here) as a fresh switch.
-        if spaces.currentSpaceUUID() == uuid { return .switched(latencyMs: 0) }
+        // An untrackable target (empty/"?") can never be matched or keyed — treat as drift.
+        guard SpaceIdentity.isTrackable(uuid) else { return .driftDetected }
+        // B-global: target the GLOBAL Ctrl+N index (position across ALL displays,
+        // empties counted), re-derived each switch and never cached (KTD-2).
+        guard let index = spaces.globalIndex(uuid: uuid) else { return .driftDetected }
+        // Already on the target on ANY display — don't post a key, and don't risk
+        // crediting a no-op (or a concurrent user switch) as a fresh switch.
+        if spaces.isSpaceCurrent(uuid: uuid) { return .switched(latencyMs: 0) }
         guard index <= 9 else { return .notKeyable(index: index) }
         if secureInput.isActive() { return .blocked(.secureInput) }
         if shortcutEnabled(index) == false { return .blocked(.shortcutDisabled) }
@@ -45,9 +49,10 @@ public struct RealDesktopEngine: SwitchEngine {
         let start = now()
         poster.postControlNumber(index)
 
-        // Bounded poll. Only an exact match to the expected UUID counts as a landing.
+        // Bounded poll. The desktop is "landed" once it is the current space of any
+        // display (focus follows to that screen — expected on multi-display).
         while now().timeIntervalSince(start) * 1000 < Double(timeoutMs) {
-            if spaces.currentSpaceUUID() == uuid {
+            if spaces.isSpaceCurrent(uuid: uuid) {
                 return .switched(latencyMs: Int(now().timeIntervalSince(start) * 1000))
             }
             try? await Task.sleep(nanoseconds: pollMs * 1_000_000)

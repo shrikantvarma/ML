@@ -34,7 +34,7 @@ struct FakeSecure: SecureInputChecking {
 /// `currents` lists the active space of each display; `focused` is the focused
 /// display's active space.
 final class FakeMultiDisplaySpaces: SpacesProvider {
-    let perDisplay: [[String]]; let focused: String?; let currents: [String]
+    let perDisplay: [[String]]; let focused: String?; var currents: [String]
     init(perDisplay: [[String]], focused: String?, currents: [String]) {
         self.perDisplay = perDisplay; self.focused = focused; self.currents = currents
     }
@@ -154,6 +154,55 @@ final class SwitchEngineTests: XCTestCase {
         let spaces = FakeSpaces(ordered: ordered, current: "S1")
         let result = await engine(spaces, FakePoster()).switch(toSpaceUUID: "S10")
         XCTAssertEqual(result, .notKeyable(index: 10))
+    }
+}
+
+// MARK: - Multi-display switch: global index + any-display verify (B-global Task 4)
+
+final class MultiDisplaySwitchTests: XCTestCase {
+    private func engine(_ spaces: SpacesProvider, _ poster: FakePoster,
+                        secure: Bool = false, shortcut: Bool? = true,
+                        timeoutMs: Int = 1000) -> RealDesktopEngine {
+        RealDesktopEngine(spaces: spaces, poster: poster, secureInput: FakeSecure(active: secure),
+                          shortcutEnabled: { _ in shortcut }, timeoutMs: timeoutMs, pollMs: 5)
+    }
+
+    func testSwitchesByGlobalIndexOnSecondaryDisplay() async {
+        // "C" lives only on display 1; it is ABSENT from the primary list, so a
+        // regression to resolveIndex would drift. globalIndex("C") == 4.
+        let spaces = FakeMultiDisplaySpaces(perDisplay: [["A","B","C0"], ["C"]], focused: "A", currents: ["A"])
+        let poster = FakePoster()
+        poster.onPost = { spaces.currents = ["A","C"] }   // the key post lands display 1 on C
+        let result = await engine(spaces, poster).switch(toSpaceUUID: "C")
+        XCTAssertEqual(poster.posted, [4], "must post the GLOBAL Ctrl+N index, not the primary-only index")
+        if case .switched = result {} else { XCTFail("expected .switched, got \(result)") }
+    }
+
+    func testNotKeyableWhenGlobalIndexBeyondNine() async {
+        // 10 desktops total across two displays; "S10" is global #10.
+        let spaces = FakeMultiDisplaySpaces(
+            perDisplay: [["S1","S2","S3","S4","S5","S6"], ["S7","S8","S9","S10"]],
+            focused: "S1", currents: ["S1"])
+        let poster = FakePoster()
+        let result = await engine(spaces, poster).switch(toSpaceUUID: "S10")
+        XCTAssertEqual(result, .notKeyable(index: 10))
+        XCTAssertTrue(poster.posted.isEmpty)
+    }
+
+    func testDriftWhenUUIDAbsentFromAllDisplays() async {
+        let spaces = FakeMultiDisplaySpaces(perDisplay: [["A","B"], ["C"]], focused: "A", currents: ["A"])
+        let poster = FakePoster()
+        let result = await engine(spaces, poster).switch(toSpaceUUID: "ZZ")
+        XCTAssertEqual(result, .driftDetected)
+        XCTAssertTrue(poster.posted.isEmpty, "no global index ⇒ drift, nothing posted")
+    }
+
+    func testUntrackableTargetIsDrift() async {
+        let spaces = FakeMultiDisplaySpaces(perDisplay: [["A","B"], ["C"]], focused: "A", currents: ["A"])
+        let poster = FakePoster()
+        let result = await engine(spaces, poster).switch(toSpaceUUID: "")
+        XCTAssertEqual(result, .driftDetected)
+        XCTAssertTrue(poster.posted.isEmpty, "an untrackable target must never post a key")
     }
 }
 
