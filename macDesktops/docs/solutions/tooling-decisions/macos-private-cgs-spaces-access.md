@@ -80,9 +80,11 @@ Switching, single-display (shipped v1): synthesize the user's "Switch to Desktop
 (Ctrl+number) shortcut (off by default; capped ~9–16); the private read API gives
 you the ordered UUID list to resolve N at switch time.
 
-Switching, multi-display: Ctrl+number can only move the *focused* display and its
-numbering is unreliable across separate-Spaces displays. The direct private call
-`CGSManagedDisplaySetCurrentSpace(conn, displayID: CFString, managedSpaceID)` was
-**spike-proven to visibly switch any display (incl. a non-focused secondary)** on
-macOS 26.4.1 — verify the landing by polling each display's current space. See
+Switching, multi-display (macOS 26 — **corrected by the 2026-06-24 gate**): the direct call
+`CGSManagedDisplaySetCurrentSpace` switches a non-focused display's *content* but leaves an
+**unfixable-no-SIP menu-bar overlap**, so it is NOT the switch mechanism. Synthesized **Ctrl+N**
+is — and its numbering is **not** unreliable as once feared: it is **global across displays,
+matches the `CGSCopyManagedDisplaySpaces` order, and tracks reorders**, so switch by the target
+UUID's global index (Ctrl+N goes through the OS path → overlap-free). `CGSGetActiveSpace()`
+resolves the focused display (recalibrate). Full reasoning + the menu-bar finding:
 [Multi-display macOS Spaces: empty-UUID identity gaps and spiking the messy state](../architecture-patterns/multi-display-spaces-identity-and-spike-strategy.md).

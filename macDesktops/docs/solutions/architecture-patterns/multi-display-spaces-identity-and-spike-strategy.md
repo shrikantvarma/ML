@@ -49,17 +49,36 @@ match, or return an empty UUID. Empty-UUID desktops then simply can't be project
 until they get a real UUID (recreate the desktop in Mission Control, or a
 logout/login regenerates UUIDs for all desktops).
 
-**2. The direct CGS space-switch works — including on a non-focused secondary display.**
+**2. The direct CGS space-switch switches *content* on a non-focused display, but
+leaves an unfixable-no-SIP menu-bar overlap — so it is NOT the switch mechanism.**
 `CGSManagedDisplaySetCurrentSpace(conn, displayID: CFString, managedSpaceID)`
-**visibly** switches the target display even while keyboard focus is on a
-different display — confirmed via window-delta (Calculator + iTerm appeared on
-Monitor 2). Verify a switch landed by polling each display's `currentSpaceUUID`;
-`CGSGetActiveSpace()` returns a value equal to a `ManagedSpaceID`, so it resolves
-the focused display. This **supersedes** the older belief that switching must
-synthesize the "Switch to Desktop N" (Ctrl+number) shortcut — Ctrl+N can only
-move the *focused* display and its numbering is unreliable across separate-Spaces
-displays. Direct switch also removes the ~9-desktop Ctrl+number cap and the
-Secure-Input/shortcut-disabled failure modes.
+**visibly** swaps the target display's windows even while focus is elsewhere
+(confirmed via window-delta). BUT it leaves a **persistent, overlapping menu bar**
+on the switched display, because the bare call swaps the space's window list without
+telling the WindowServer to re-evaluate that display's front process / menu bar — the
+activation bookkeeping the SIP-gated Dock path does for free. **No no-SIP fix exists:**
+`NSRunningApplication.activate()` no-ops (cooperative post-Sonoma), and the SLPS
+`_SLPSSetFrontProcessWithOptions` + synthetic-event nudge (yabai's technique) did
+nothing and made it *worse*. Only a genuine user interaction on that display clears it.
+This matches the SIP boundary in
+[the prior-art research](../tooling-decisions/macos-spaces-sip-boundary-and-multidisplay-prior-art.md):
+the bare switch is no-SIP, the *clean activated* switch is the Dock/SIP part.
+
+**Therefore the switch mechanism reverted to synthesized Ctrl+N — and the old "Ctrl+N
+numbering is unreliable across separate Spaces" fear was empirically WRONG on macOS 26.**
+"Switch to Desktop N" numbering is **global across all displays and matches the
+`CGSCopyManagedDisplaySpaces` order exactly** (display-then-space: laptop's 3 desktops are
+Ctrl+1–3, the second display's are Ctrl+4–5), and it **tracks reorders in lockstep** (swap two
+desktops → both the CGS map and the Ctrl+N landing swap). Because Ctrl+N goes through the OS
+path, it is **overlap-free**. So switch by computing the target UUID's **global index** in the
+all-displays ordered list and posting Ctrl+\<index\> (re-derive the index each switch — identity
+stays the UUID; empties still count toward the position since macOS numbers them too). Verify by
+polling the target display's `currentSpaceUUID == target` (a numbering divergence then surfaces as
+a *failed* switch, never a silent wrong-project). `CGSGetActiveSpace()` returns a `ManagedSpaceID`
+and resolves the **focused** display (used for recalibrate). Retained costs of Ctrl+N: the
+~9-desktop cap now applies to the **total** across displays, the shortcut must be enabled (already
+a v1 onboarding step), and switching a content desktop is **focus-follows** (focus moves to that
+display; empty targets leave focus put).
 
 **3. Verify Spaces behavior by window-delta, never by eye.**
 Empty desktops are pixel-identical, so "did it switch?" is unanswerable visually —
@@ -77,6 +96,21 @@ declaring a gate passed, **enumerate the conditions the production path will
 actually hit** (N displays — CGS reported 3 entries for 2 monitors; rearranged
 desktops; stale persisted bindings; identical-looking empties) and make the spike
 reproduce them.
+
+**5. There are two classes of desktop, and the real churn event is display
+disconnect/reconnect — not a Space drag.** macOS 26 does **not** let you drag a Space
+between displays in Mission Control; a Project never "moves screens" by user action. The
+topology only churns when the **display set changes** (unplug/replug, sleep/wake, resolution
+change) — so re-read topology on display-configuration-change, not on every space change.
+Across a disconnect/reconnect, empirically:
+- **Durable desktops** keep **both** their `uuid` and `id64` and simply relocate to the
+  remaining display (a Project bound by uuid is found via the all-displays union → no false drift).
+- **Ephemeral empty-uuid desktops** are **minted and destroyed per connection event** with a
+  **fresh id64 each time** (observed `id64 602 → destroyed → 650`). So an empty desktop has *no*
+  stable identity — not its uuid, not even a session-scoped id64. **This kills the "id64 as a
+  session-stable fallback" idea**: guarding empties out is the only correct model. Reconnect is
+  also the moment a fresh empty desktop appears on the reattached display — the exact state that
+  collapsed the reverted build (it bound/matched the empty as `""`).
 
 ## Why This Matters
 

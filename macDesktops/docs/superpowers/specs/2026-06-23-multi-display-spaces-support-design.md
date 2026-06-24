@@ -1,9 +1,23 @@
 # Multi-Display Spaces Support — Design
 
 **Date:** 2026-06-23
-**Status:** Approved (brainstorm) — pending spec review
+**Status:** Brainstorm approved — **superseded on switch mechanism by the 2026-06-24 messy-state gate (see banner)**
 **Branch:** `full-app-mvp`
-**Related:** `docs/plans/2026-06-21-001-feat-parallel-project-desktops-plan.md` (Risk R-4 deferred multi-display)
+**Related:** `docs/plans/2026-06-21-001-feat-parallel-project-desktops-plan.md` (Risk R-4 deferred multi-display); `Spike/SPIKE-multidisplay.md` (gate results)
+
+> **GATE OUTCOME UPDATE (2026-06-24) — the switch mechanism flipped from A to B.**
+> This design preferred **Approach A** (direct `CGSManagedDisplaySetCurrentSpace`) with B as the
+> fallback. The messy-state spike (which the original happy-path spike never ran) found that A's
+> direct switch leaves a **persistent menu-bar overlap** on the switched display, with **no no-SIP
+> fix** (`NSRunningApplication.activate` and the SLPS `_SLPSSetFrontProcessWithOptions` nudge both
+> failed; the latter made it worse). **Approach B-global is now selected**: synthesize Ctrl+N using
+> the desktop's **global** index (its position in the all-displays ordered list), which goes through
+> the OS path and is **overlap-free**, reuses the shipped v1 engine, and proved robust to display
+> reorders/disconnects (index re-derived from the UUID each switch; the UUID remains the identity).
+> Trade accepted: ~9-desktop cap on the TOTAL across displays, and focus-follows-switch for
+> content-bearing projects. Everything below about the **read layer, identity/empty-UUID guard,
+> drift union, and focused-display recalibrate is unchanged and confirmed** — only §"Switch engine"
+> and the A/B selection are overridden. Full evidence: `Spike/SPIKE-multidisplay.md`.
 
 ## Problem
 
