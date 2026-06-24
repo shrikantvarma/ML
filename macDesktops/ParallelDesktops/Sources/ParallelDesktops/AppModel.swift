@@ -149,9 +149,12 @@ final class AppModel: ObservableObject {
     }
 
     private func recomputeDrift() {
-        let ordered = spaces.orderedUserSpaceUUIDs()
-        orderedSnapshot = ordered
-        let drifted = Set(DriftDetector.driftedUUIDs(bound: projects.map { $0.spaceUUID }, in: ordered))
+        // Present-set spans ALL displays (trackable only): a Project on the
+        // secondary display must not be flagged drifted just because it isn't on
+        // the primary display's desktop list (B-global false-drift fix).
+        let present = spaces.allTrackableUserSpaceUUIDs()
+        orderedSnapshot = present
+        let drifted = Set(DriftDetector.driftedUUIDs(bound: projects.map { $0.spaceUUID }, in: present))
         for i in projects.indices where projects[i].drifted != drifted.contains(projects[i].spaceUUID) {
             projects[i].drifted = drifted.contains(projects[i].spaceUUID)
             store.update(projects[i])

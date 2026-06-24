@@ -446,6 +446,19 @@ final class DriftDetectorTests: XCTestCase {
     }
 }
 
+// MARK: - Multi-display drift uses the all-displays union (B-global Task 3)
+
+final class MultiDisplayDriftTests: XCTestCase {
+    func testDesktopOnSecondaryIsNotDrifted() {
+        let s = FakeMultiDisplaySpaces(perDisplay: [["A","B"], ["C"]], focused: "A", currents: ["A","C"])
+        XCTAssertEqual(DriftDetector.driftedUUIDs(bound: ["A","C"], in: s.allTrackableUserSpaceUUIDs()), [])
+    }
+    func testDeletedDesktopStillDrifts() {
+        let s = FakeMultiDisplaySpaces(perDisplay: [["A"], ["C"]], focused: "A", currents: ["A","C"])
+        XCTAssertEqual(DriftDetector.driftedUUIDs(bound: ["A","Z"], in: s.allTrackableUserSpaceUUIDs()), ["Z"])
+    }
+}
+
 // MARK: - ProjectStore (U6 / KTD-6)
 
 final class ProjectStoreTests: XCTestCase {
