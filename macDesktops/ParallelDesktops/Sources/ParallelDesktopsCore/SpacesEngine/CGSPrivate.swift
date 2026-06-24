@@ -10,6 +10,7 @@ typealias CGSConnectionID = Int32
 
 private typealias MainConnFn = @convention(c) () -> CGSConnectionID
 private typealias CopyManagedDisplaySpacesFn = @convention(c) (CGSConnectionID) -> Unmanaged<CFArray>?
+private typealias GetActiveSpaceFn = @convention(c) (CGSConnectionID) -> Int
 
 struct SpaceInfo {
     let uuid: String
@@ -36,6 +37,7 @@ enum CGS {
 
     private static let mainConn = sym("CGSMainConnectionID", as: MainConnFn.self)
     private static let copyManaged = sym("CGSCopyManagedDisplaySpaces", as: CopyManagedDisplaySpacesFn.self)
+    private static let getActiveSpace = sym("CGSGetActiveSpace", as: GetActiveSpaceFn.self)
 
     static var symbolsAvailable: Bool { mainConn != nil && copyManaged != nil }
     static var connectionID: CGSConnectionID? { mainConn?() }
@@ -60,4 +62,26 @@ enum CGS {
 
     /// Primary display only (v1 scope per plan Risk R-4).
     static func primaryDisplay() -> DisplaySpaces? { managedDisplaySpaces()?.first }
+
+    /// All displays with their ordered Spaces (empty if a symbol is unavailable).
+    static func allDisplays() -> [DisplaySpaces] { managedDisplaySpaces() ?? [] }
+
+    /// Globally-active space id (focused display). nil if symbol absent.
+    static func activeSpaceID() -> Int? {
+        guard let conn = connectionID, let fn = getActiveSpace else { return nil }
+        return fn(conn)
+    }
+
+    /// Focused display's current space uuid (via CGSGetActiveSpace → managedSpaceID
+    /// match). Falls back to the primary display's current if the symbol is missing.
+    /// Returns nil if the focused desktop is untrackable (empty/"?").
+    static func focusedCurrentSpaceUUID() -> String? {
+        guard let active = activeSpaceID() else { return primaryDisplay()?.currentSpaceUUID }
+        for d in allDisplays() {
+            for s in d.spaces where Int(s.managedSpaceID) == active {
+                return SpaceIdentity.isTrackable(s.uuid) ? s.uuid : nil
+            }
+        }
+        return primaryDisplay()?.currentSpaceUUID
+    }
 }

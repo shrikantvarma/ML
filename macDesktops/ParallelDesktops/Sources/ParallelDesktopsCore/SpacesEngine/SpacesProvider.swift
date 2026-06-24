@@ -67,4 +67,14 @@ public struct CGSSpacesProvider: SpacesProvider {
     public func currentSpaceUUID() -> String? {
         CGS.primaryDisplay()?.currentSpaceUUID
     }
+    public func globalDesktopUUIDs() -> [String] {
+        CGS.allDisplays().flatMap { $0.userSpaces.map { $0.uuid } }   // includes ""/"?"; index needs them
+    }
+    public func focusedCurrentSpaceUUID() -> String? {
+        CGS.focusedCurrentSpaceUUID().flatMap { SpaceIdentity.isTrackable($0) ? $0 : nil }
+    }
+    public func isSpaceCurrent(uuid: String) -> Bool {
+        guard SpaceIdentity.isTrackable(uuid) else { return false }
+        return CGS.allDisplays().contains { $0.currentSpaceUUID == uuid }
+    }
 }
