@@ -90,7 +90,8 @@ final class AppModel: ObservableObject {
 
     /// Cache the active desktop's front app, focused-window title, and frames.
     private func refreshCurrentContext() {
-        guard let uuid = spaces.currentSpaceUUID() else { return }
+        // Cache context for the desktop on the focused display, not the primary.
+        guard let uuid = spaces.focusedCurrentSpaceUUID() else { return }
         var ctx = contextBySpace[uuid] ?? SpaceContext()
         ctx.frontAppBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         ctx.windowTitle = AXTitleReader.focusedWindowTitle()
@@ -145,7 +146,8 @@ final class AppModel: ObservableObject {
     }
 
     private func recomputeCurrent() {
-        currentProject = spaces.currentSpaceUUID().flatMap { store.project(forSpaceUUID: $0) }
+        // "Current project" is the one on the display the user is actually focused on.
+        currentProject = spaces.focusedCurrentSpaceUUID().flatMap { store.project(forSpaceUUID: $0) }
     }
 
     private func recomputeDrift() {
@@ -167,8 +169,10 @@ final class AppModel: ObservableObject {
     /// blueprint to the apps now open (resolves the "overwrite" question, U7).
     func saveCurrentDesktopAsProject(name: String) {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
-        guard let uuid = spaces.currentSpaceUUID() else {
-            status = "Couldn't read the current desktop."; return
+        // Bind against the FOCUSED display, and never bind an untrackable desktop —
+        // an empty-uuid desktop has no stable identity to host a Project (B-global).
+        guard let uuid = spaces.focusedCurrentSpaceUUID(), SpaceIdentity.isTrackable(uuid) else {
+            status = "This desktop can’t be saved yet — it has no stable identity."; return
         }
         let bundleIDs = Array(Set(AppInspector.appsOnCurrentDesktop().map { $0.bundleID })).sorted()
 
@@ -204,7 +208,9 @@ final class AppModel: ObservableObject {
 
     /// Re-capture the blueprint from the current desktop (must be ON that desktop).
     func updateApps(_ project: Project) {
-        guard spaces.currentSpaceUUID() == project.spaceUUID else {
+        // Gate on the FOCUSED display so a user already on this desktop via a
+        // secondary display isn't wrongly told to "switch first".
+        guard spaces.focusedCurrentSpaceUUID() == project.spaceUUID else {
             status = "Switch to “\(project.name)” first, then update its apps."; return
         }
         guard var p = projects.first(where: { $0.id == project.id }) else { return }
@@ -304,7 +310,10 @@ final class AppModel: ObservableObject {
 
     /// Rebind a drifted project to the desktop you're currently on (U5 recalibration).
     func recalibrate(_ project: Project) {
-        guard let uuid = spaces.currentSpaceUUID() else { return }
+        // Rebind to the desktop on the FOCUSED display; refuse an untrackable one.
+        guard let uuid = spaces.focusedCurrentSpaceUUID(), SpaceIdentity.isTrackable(uuid) else {
+            status = "This desktop can’t host a project yet — it has no stable identity."; return
+        }
         if let other = store.project(forSpaceUUID: uuid), other.id != project.id {
             status = "This desktop already hosts “\(other.name)”."; return
         }
