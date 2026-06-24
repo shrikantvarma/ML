@@ -84,7 +84,8 @@ struct MenuBarListView: View {
         .padding(12)
         .frame(width: 320)
         .onAppear {
-            model.refreshPermissions()   // re-check whenever the popover opens
+            model.refreshPermissions()       // re-check whenever the popover opens
+            model.refreshFocusedProject()    // focus may have moved displays since last Space-change
             ensureCurrentExpanded()
         }
         .onChange(of: model.currentProject?.id) { _, _ in ensureCurrentExpanded() }

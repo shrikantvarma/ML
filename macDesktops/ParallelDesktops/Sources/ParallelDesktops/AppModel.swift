@@ -77,10 +77,21 @@ final class AppModel: ObservableObject {
         wsCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification,
                              object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
+                // App activation is our best signal that focus moved (often across
+                // displays). macOS does NOT post activeSpaceDidChange for a focus-only
+                // display switch, so recompute "current" here too or it goes stale.
+                self?.recomputeCurrent()
                 self?.refreshCurrentContext()
                 self?.refreshPermissions()   // catches return from System Settings
             }
         }
+    }
+
+    /// Re-resolve the focused display's project on demand. Called when the menu
+    /// opens — the moment the value is actually viewed — so it is correct even
+    /// when no notification fired (focus-only display switches don't post one).
+    func refreshFocusedProject() {
+        recomputeCurrent()
     }
 
     func refreshPermissions() {
