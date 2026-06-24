@@ -29,6 +29,53 @@ struct FakeSecure: SecureInputChecking {
     func isActive() -> Bool { active }
 }
 
+/// Multi-display fake: `perDisplay` rows are ordered left→right; "" marks an
+/// empty-uuid desktop (macOS numbers it for Ctrl+N but it can't host a Project).
+/// `currents` lists the active space of each display; `focused` is the focused
+/// display's active space.
+final class FakeMultiDisplaySpaces: SpacesProvider {
+    let perDisplay: [[String]]; let focused: String?; let currents: [String]
+    init(perDisplay: [[String]], focused: String?, currents: [String]) {
+        self.perDisplay = perDisplay; self.focused = focused; self.currents = currents
+    }
+    func orderedUserSpaceUUIDs() -> [String] { perDisplay.first ?? [] }
+    func currentSpaceUUID() -> String? { currents.first }
+    func globalDesktopUUIDs() -> [String] { perDisplay.flatMap { $0 } }
+    func focusedCurrentSpaceUUID() -> String? { focused }
+    func isSpaceCurrent(uuid: String) -> Bool { SpaceIdentity.isTrackable(uuid) && currents.contains(uuid) }
+}
+
+// MARK: - SpaceIdentity guard + multi-display read seam (B-global Task 1)
+
+final class SpaceIdentityTests: XCTestCase {
+    func testTrackable() {
+        XCTAssertTrue(SpaceIdentity.isTrackable("A1B2"))
+        XCTAssertFalse(SpaceIdentity.isTrackable(""))
+        XCTAssertFalse(SpaceIdentity.isTrackable("?"))
+    }
+}
+
+final class MultiDisplayReadTests: XCTestCase {
+    func testGlobalIndexCountsEmptiesButOnlyMatchesTrackable() {
+        // display 1 has an empty desktop at position 4; "C" is global #5.
+        let s = FakeMultiDisplaySpaces(perDisplay: [["A","B","C0"], ["", "C"]], focused: "A", currents: ["A","C"])
+        XCTAssertEqual(s.globalIndex(uuid: "C"), 5)   // counts the empty at index 4
+        XCTAssertEqual(s.globalIndex(uuid: "A"), 1)
+        XCTAssertNil(s.globalIndex(uuid: ""))          // never index an empty
+        XCTAssertNil(s.globalIndex(uuid: "ZZ"))        // absent
+    }
+    func testAllTrackableExcludesEmpties() {
+        let s = FakeMultiDisplaySpaces(perDisplay: [["A","B"], ["", "C"]], focused: "A", currents: ["A","C"])
+        XCTAssertEqual(s.allTrackableUserSpaceUUIDs(), ["A","B","C"])
+    }
+    func testDefaultsFallBackToSingleDisplay() {
+        let s = FakeSpaces(ordered: ["A","B"], current: "A")   // existing single-display fake
+        XCTAssertEqual(s.globalDesktopUUIDs(), ["A","B"])
+        XCTAssertEqual(s.focusedCurrentSpaceUUID(), "A")
+        XCTAssertTrue(s.isSpaceCurrent(uuid: "A")); XCTAssertFalse(s.isSpaceCurrent(uuid: "B"))
+    }
+}
+
 // MARK: - resolveIndex (KTD-2)
 
 final class ResolveIndexTests: XCTestCase {
