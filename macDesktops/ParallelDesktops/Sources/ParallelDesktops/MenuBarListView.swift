@@ -251,6 +251,18 @@ struct MenuBarListView: View {
                     }
                     .frame(width: 22, height: 22)
                     Text(project.name).fontWeight(isCurrent ? .semibold : .regular)
+                    // Which display this project's desktop lives on — only shown with
+                    // multiple displays attached, so single-monitor users see nothing.
+                    if model.displayCount > 1, let ordinal = model.displayOrdinals[project.id] {
+                        HStack(spacing: 2) {
+                            Image(systemName: "display").font(.system(size: 8.5))
+                            Text("\(ordinal)").font(.system(size: 9.5, weight: .medium))
+                        }
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 5).padding(.vertical, 1)
+                        .background(Capsule().fill(Palette.badge))
+                        .help("On Display \(ordinal)")
+                    }
                     Spacer()
                     if project.drifted {
                         Image(systemName: "exclamationmark.triangle.fill")

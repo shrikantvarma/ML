@@ -22,6 +22,9 @@ public protocol SpacesProvider {
     /// empty-uuid desktops, because macOS numbers them for Ctrl+N. This is the
     /// global-index list; do not filter it.
     func globalDesktopUUIDs() -> [String]
+    /// User desktops grouped by display, in display order, each ordered left→right
+    /// (empties included). Flattening this equals globalDesktopUUIDs().
+    func displaysWithDesktops() -> [[String]]
     /// The focused display's current desktop uuid (trackable only; nil otherwise).
     func focusedCurrentSpaceUUID() -> String?
     /// Is `uuid` the current desktop of ANY display? (trackable only)
@@ -40,8 +43,17 @@ public extension SpacesProvider {
     // Single-display defaults: one display ⇒ the global list IS the primary list,
     // the focused current IS the primary current. Existing fakes keep working.
     func globalDesktopUUIDs() -> [String] { orderedUserSpaceUUIDs() }
+    func displaysWithDesktops() -> [[String]] { [orderedUserSpaceUUIDs()] }
     func focusedCurrentSpaceUUID() -> String? { currentSpaceUUID() }
     func isSpaceCurrent(uuid: String) -> Bool { currentSpaceUUID() == uuid }
+
+    /// 1-based ordinal of the display hosting `uuid`'s desktop (Display 1, 2, …).
+    /// nil for an untrackable or absent uuid.
+    func displayOrdinal(forSpaceUUID uuid: String) -> Int? {
+        guard SpaceIdentity.isTrackable(uuid),
+              let i = displaysWithDesktops().firstIndex(where: { $0.contains(uuid) }) else { return nil }
+        return i + 1
+    }
 
     /// Trackable user desktops across all displays — the "present" set for drift.
     /// Excludes empties (they can't host a Project), unlike `globalDesktopUUIDs()`.
@@ -69,6 +81,9 @@ public struct CGSSpacesProvider: SpacesProvider {
     }
     public func globalDesktopUUIDs() -> [String] {
         CGS.allDisplays().flatMap { $0.userSpaces.map { $0.uuid } }   // includes ""/"?"; index needs them
+    }
+    public func displaysWithDesktops() -> [[String]] {
+        CGS.allDisplays().map { $0.userSpaces.map { $0.uuid } }       // flattens to globalDesktopUUIDs()
     }
     public func focusedCurrentSpaceUUID() -> String? {
         CGS.focusedCurrentSpaceUUID().flatMap { SpaceIdentity.isTrackable($0) ? $0 : nil }

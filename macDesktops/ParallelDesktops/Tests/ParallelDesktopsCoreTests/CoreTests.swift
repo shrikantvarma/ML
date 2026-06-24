@@ -41,6 +41,7 @@ final class FakeMultiDisplaySpaces: SpacesProvider {
     func orderedUserSpaceUUIDs() -> [String] { perDisplay.first ?? [] }
     func currentSpaceUUID() -> String? { currents.first }
     func globalDesktopUUIDs() -> [String] { perDisplay.flatMap { $0 } }
+    func displaysWithDesktops() -> [[String]] { perDisplay }
     func focusedCurrentSpaceUUID() -> String? { focused }
     func isSpaceCurrent(uuid: String) -> Bool { SpaceIdentity.isTrackable(uuid) && currents.contains(uuid) }
 }
@@ -73,6 +74,32 @@ final class MultiDisplayReadTests: XCTestCase {
         XCTAssertEqual(s.globalDesktopUUIDs(), ["A","B"])
         XCTAssertEqual(s.focusedCurrentSpaceUUID(), "A")
         XCTAssertTrue(s.isSpaceCurrent(uuid: "A")); XCTAssertFalse(s.isSpaceCurrent(uuid: "B"))
+    }
+}
+
+final class DisplayMappingTests: XCTestCase {
+    func testDisplayOrdinalAcrossDisplays() {
+        let s = FakeMultiDisplaySpaces(perDisplay: [["A","B"], ["C","D"]], focused: "A", currents: ["A","C"])
+        XCTAssertEqual(s.displayOrdinal(forSpaceUUID: "A"), 1)
+        XCTAssertEqual(s.displayOrdinal(forSpaceUUID: "B"), 1)
+        XCTAssertEqual(s.displayOrdinal(forSpaceUUID: "C"), 2)
+        XCTAssertEqual(s.displayOrdinal(forSpaceUUID: "D"), 2)
+        XCTAssertNil(s.displayOrdinal(forSpaceUUID: "Z"))   // absent
+        XCTAssertNil(s.displayOrdinal(forSpaceUUID: ""))    // untrackable never maps
+    }
+    func testSingleDisplayDefaultOrdinalIsOne() {
+        let s = FakeSpaces(ordered: ["A","B"], current: "A")
+        XCTAssertEqual(s.displayOrdinal(forSpaceUUID: "A"), 1)
+        XCTAssertEqual(s.displayOrdinal(forSpaceUUID: "B"), 1)
+        XCTAssertNil(s.displayOrdinal(forSpaceUUID: "Z"))
+        XCTAssertEqual(s.displaysWithDesktops().count, 1)
+    }
+    func testDisplaysWithDesktopsFlattensToGlobalList() {
+        // The per-display grouping must flatten to exactly the global index list
+        // (empties included) — they are two views of the same ordered desktops.
+        let s = FakeMultiDisplaySpaces(perDisplay: [["A","","C0"], ["C"]], focused: "A", currents: ["A","C"])
+        XCTAssertEqual(s.displaysWithDesktops().flatMap { $0 }, s.globalDesktopUUIDs())
+        XCTAssertEqual(s.displaysWithDesktops().count, 2)
     }
 }
 

@@ -15,6 +15,12 @@ final class AppModel: ObservableObject {
     /// The project bound to the desktop you're currently on (nil if none) — drives
     /// the menu-bar title and the "current" marker in the list.
     @Published var currentProject: Project?
+    /// Number of displays currently attached (≥1). The UI shows per-project display
+    /// badges only when this is >1, so single-monitor users see no extra chrome.
+    @Published var displayCount: Int = 1
+    /// project.id → 1-based display ordinal hosting its desktop (Display 1, 2, …).
+    /// Absent for a drifted/orphaned project whose desktop isn't on any display.
+    @Published var displayOrdinals: [UUID: Int] = [:]
 
     private lazy var resumeCard = ResumeCardController()
     private lazy var recap = RecapController(onEnter: { [weak self] in self?.enter($0) })
@@ -92,6 +98,19 @@ final class AppModel: ObservableObject {
     /// when no notification fired (focus-only display switches don't post one).
     func refreshFocusedProject() {
         recomputeCurrent()
+        refreshDisplayMap()
+    }
+
+    /// Snapshot which display each project's desktop lives on. One CGS read; the
+    /// ordinals are derived from that single snapshot (no per-project IPC).
+    private func refreshDisplayMap() {
+        let groups = spaces.displaysWithDesktops()
+        displayCount = groups.count
+        var map: [UUID: Int] = [:]
+        for p in projects where SpaceIdentity.isTrackable(p.spaceUUID) {
+            if let i = groups.firstIndex(where: { $0.contains(p.spaceUUID) }) { map[p.id] = i + 1 }
+        }
+        displayOrdinals = map
     }
 
     func refreshPermissions() {
@@ -172,6 +191,7 @@ final class AppModel: ObservableObject {
             projects[i].drifted = drifted.contains(projects[i].spaceUUID)
             store.update(projects[i])
         }
+        refreshDisplayMap()   // display topology may have changed alongside presence
     }
 
     // MARK: Capture / edit (U7)
