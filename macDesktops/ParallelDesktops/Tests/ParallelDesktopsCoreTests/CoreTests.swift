@@ -189,6 +189,30 @@ final class MultiDisplaySwitchTests: XCTestCase {
         XCTAssertTrue(poster.posted.isEmpty)
     }
 
+    func testPostsGlobalIndexCountingAnEmptyDesktopBeforeTarget() async {
+        // An empty desktop sits at global #4; "C" is global #5 because macOS numbers
+        // the empty for Ctrl+N. A regression that filtered empties would post 4 and
+        // still pass every other switch test — this is the only switch-path guard.
+        let spaces = FakeMultiDisplaySpaces(perDisplay: [["A","B","C0"], ["", "C"]], focused: "A", currents: ["A"])
+        let poster = FakePoster()
+        poster.onPost = { spaces.currents = ["A","C"] }
+        let result = await engine(spaces, poster).switch(toSpaceUUID: "C")
+        XCTAssertEqual(poster.posted, [5], "the empty desktop must be counted in the Ctrl+N index")
+        if case .switched = result {} else { XCTFail("expected .switched, got \(result)") }
+    }
+
+    func testAlreadyCurrentBeyondNineStillSwitchesWithoutPosting() async {
+        // "S10" is global #10 but already current on display 1. The already-on-target
+        // short-circuit must run BEFORE the ≤9 cap, so this is .switched(0), not .notKeyable.
+        let spaces = FakeMultiDisplaySpaces(
+            perDisplay: [["S1","S2","S3","S4","S5","S6"], ["S7","S8","S9","S10"]],
+            focused: "S1", currents: ["S1","S10"])
+        let poster = FakePoster()
+        let result = await engine(spaces, poster).switch(toSpaceUUID: "S10")
+        if case .switched = result {} else { XCTFail("already-current must short-circuit before the >9 cap, got \(result)") }
+        XCTAssertTrue(poster.posted.isEmpty)
+    }
+
     func testDriftWhenUUIDAbsentFromAllDisplays() async {
         let spaces = FakeMultiDisplaySpaces(perDisplay: [["A","B"], ["C"]], focused: "A", currents: ["A"])
         let poster = FakePoster()

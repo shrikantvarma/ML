@@ -73,15 +73,23 @@ enum CGS {
     }
 
     /// Focused display's current space uuid (via CGSGetActiveSpace → managedSpaceID
-    /// match). Falls back to the primary display's current if the symbol is missing.
-    /// Returns nil if the focused desktop is untrackable (empty/"?").
+    /// match). Falls back to the primary display's current if the symbol is missing
+    /// or the active id matches no space. Returns nil if the resulting desktop is
+    /// untrackable (empty/"?") — the contract callers (e.g. recomputeCurrent) rely on.
     static func focusedCurrentSpaceUUID() -> String? {
-        guard let active = activeSpaceID() else { return primaryDisplay()?.currentSpaceUUID }
+        guard let active = activeSpaceID() else { return primaryFocusFallback() }
         for d in allDisplays() {
-            for s in d.spaces where Int(s.managedSpaceID) == active {
+            // managedSpaceID == -1 is the parse-failure sentinel — never let it alias `active`.
+            for s in d.spaces where s.managedSpaceID >= 0 && Int(s.managedSpaceID) == active {
                 return SpaceIdentity.isTrackable(s.uuid) ? s.uuid : nil
             }
         }
-        return primaryDisplay()?.currentSpaceUUID
+        return primaryFocusFallback()
+    }
+
+    /// Symbol-missing / no-match fallback. The "nil when untrackable" guard lives
+    /// here so an empty/"?" sentinel can never escape on the fallback paths.
+    private static func primaryFocusFallback() -> String? {
+        primaryDisplay()?.currentSpaceUUID.flatMap { SpaceIdentity.isTrackable($0) ? $0 : nil }
     }
 }
