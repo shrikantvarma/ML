@@ -62,13 +62,14 @@ public struct DesktopList {
                             displayNames: [String] = []) -> DesktopList {
         let displays = spaces.displaysWithDesktops()
         let focused = spaces.focusedCurrentSpaceUUID()
+        let currents = spaces.currentSpaceUUIDs()   // one read; "other display" membership test
         // Only trackable spaceUUIDs can match a live desktop.
         let projectByUUID = Dictionary(
             projects.filter { SpaceIdentity.isTrackable($0.spaceUUID) }.map { ($0.spaceUUID, $0) },
             uniquingKeysWith: { first, _ in first })
 
         var globalIndex = 0
-        var liveTrackable = Set<String>()
+        var placedProjectIDs = Set<UUID>()
         var sections: [DisplaySection] = []
 
         for (displayIndex, desktops) in displays.enumerated() {
@@ -79,14 +80,16 @@ public struct DesktopList {
                 let marker: DesktopRow.Marker =
                     !trackable ? .none
                     : uuid == focused ? .focused
-                    : spaces.isSpaceCurrent(uuid: uuid) ? .other
+                    : currents.contains(uuid) ? .other
                     : .none
                 let binding: DesktopRow.Binding
                 if !trackable {
                     binding = .emptyNoID
+                } else if let project = projectByUUID[uuid] {
+                    placedProjectIDs.insert(project.id)
+                    binding = .project(project)
                 } else {
-                    liveTrackable.insert(uuid)
-                    binding = projectByUUID[uuid].map { .project($0) } ?? .unnamed
+                    binding = .unnamed
                 }
                 rows.append(DesktopRow(uuid: uuid, globalIndex: globalIndex, marker: marker, binding: binding))
             }
@@ -94,7 +97,9 @@ public struct DesktopList {
             sections.append(DisplaySection(ordinal: displayIndex + 1, name: name, rows: rows))
         }
 
-        let offDisplay = projects.filter { !liveTrackable.contains($0.spaceUUID) }
+        // Off-display = any project NOT placed on a live row (vanished desktop, untrackable
+        // binding, or the loser of a duplicate-uuid pair) — keyed by id so nothing vanishes.
+        let offDisplay = projects.filter { !placedProjectIDs.contains($0.id) }
         return DesktopList(sections: sections, offDisplayProjects: offDisplay)
     }
 }

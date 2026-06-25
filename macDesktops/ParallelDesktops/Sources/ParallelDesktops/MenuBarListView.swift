@@ -255,10 +255,12 @@ struct MenuBarListView: View {
         .help("“\(project.name)” isn't on any connected display")
     }
 
-    /// Where "Open on → [display]" lands: that display's current desktop, else its
-    /// first nameable desktop.
+    /// Where "Open on → [display]" lands: prefer a FREE (unnamed) desktop so the
+    /// relocate doesn't collide with a project already hosted there; else that
+    /// display's current desktop; else its first trackable desktop.
     private func relocateTarget(in section: DisplaySection) -> String? {
-        section.rows.first(where: { $0.marker != .none })?.uuid
+        section.rows.first(where: { $0.isUnnamed })?.uuid
+            ?? section.rows.first(where: { $0.marker != .none })?.uuid
             ?? section.rows.first(where: { !$0.isEmptyNoID })?.uuid
     }
 

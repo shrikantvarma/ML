@@ -44,6 +44,7 @@ final class FakeMultiDisplaySpaces: SpacesProvider {
     func displaysWithDesktops() -> [[String]] { perDisplay }
     func focusedCurrentSpaceUUID() -> String? { focused }
     func isSpaceCurrent(uuid: String) -> Bool { SpaceIdentity.isTrackable(uuid) && currents.contains(uuid) }
+    func currentSpaceUUIDs() -> Set<String> { Set(currents.filter { SpaceIdentity.isTrackable($0) }) }
 }
 
 // MARK: - SpaceIdentity guard + multi-display read seam (B-global Task 1)
@@ -169,6 +170,24 @@ final class DesktopListTests: XCTestCase {
         let s = FakeMultiDisplaySpaces(perDisplay: [["A","B"], ["C","D"]], focused: "A", currents: ["A","C"])
         let list = DesktopList.make(spaces: s, projects: [], displayNames: [])
         XCTAssertEqual(list.sections.flatMap { $0.rows }.map { $0.uuid }, s.globalDesktopUUIDs())
+    }
+
+    func testFocusedBeatsOtherWhenFocusedDesktopIsAlsoAMarkedCurrent() {
+        // The focused display's current uuid is, by definition, also in the current set.
+        // ◉ must win over ◐ for that row (precedence: focused checked before other).
+        let s = FakeMultiDisplaySpaces(perDisplay: [["A","B"], ["C"]], focused: "A", currents: ["A","C"])
+        let rows = DesktopList.make(spaces: s, projects: [], displayNames: []).sections.flatMap { $0.rows }
+        XCTAssertEqual(rows[0].marker, .focused)   // A: focused (and in currents) → focused, not other
+        XCTAssertEqual(rows[2].marker, .other)     // C: current on the other display
+    }
+
+    func testDuplicateUUIDProjectLoserSurfacesOffDisplayNotVanished() {
+        // Two projects bound to the same trackable uuid (e.g. a hand-edited store): the
+        // first binds the live row; the loser must still appear off-display, never vanish.
+        let s = FakeMultiDisplaySpaces(perDisplay: [["A"]], focused: "A", currents: ["A"])
+        let list = DesktopList.make(spaces: s, projects: [proj("First","A"), proj("Second","A")], displayNames: [])
+        XCTAssertEqual(list.sections[0].rows[0].project?.name, "First")
+        XCTAssertEqual(list.offDisplayProjects.map { $0.name }, ["Second"])
     }
 }
 

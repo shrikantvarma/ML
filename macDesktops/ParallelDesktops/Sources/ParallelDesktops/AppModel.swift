@@ -49,7 +49,7 @@ final class AppModel: ObservableObject {
 
     init() {
         engine = RealDesktopEngine(spaces: CGSSpacesProvider())
-        projects = store.projects; recomputeCurrent()
+        reloadProjects()
         previousSpaceUUID = spaces.currentSpaceUUID()
         orderedSnapshot = spaces.orderedUserSpaceUUIDs()
         refreshCurrentContext()
@@ -110,6 +110,15 @@ final class AppModel: ObservableObject {
     private func refreshDesktopList() {
         desktopList = DesktopList.make(spaces: spaces, projects: projects,
                                        displayNames: friendlyDisplayNames())
+    }
+
+    /// Reload after any mutation: pull the store, recompute "current", and rebuild the
+    /// switcher model so in-menu edits (rename/delete/add-link/checklist/icon) reflect
+    /// live while the popover is open (the rows render from desktopList, not projects).
+    private func reloadProjects() {
+        projects = store.projects
+        recomputeCurrent()
+        refreshDesktopList()
     }
 
     /// Section labels for the switcher: "Display N · <friendly name>" when the CGS
@@ -188,7 +197,7 @@ final class AppModel: ObservableObject {
             project.blueprint.frames[bundleID] = frame
         }
         store.update(project)
-        projects = store.projects; recomputeCurrent()
+        reloadProjects()
     }
 
     private func recomputeCurrent() {
@@ -227,7 +236,7 @@ final class AppModel: ObservableObject {
             existing.blueprint.bundleIDs = bundleIDs
             if !trimmed.isEmpty { existing.name = trimmed }   // optional rename on re-save
             store.update(existing)
-            projects = store.projects; recomputeCurrent()
+            reloadProjects()
             status = "Updated “\(existing.name)” (\(bundleIDs.count) apps)."
             return
         }
@@ -236,7 +245,7 @@ final class AppModel: ObservableObject {
         let project = Project(name: trimmed, spaceUUID: uuid, blueprint: Blueprint(bundleIDs: bundleIDs))
         do {
             try store.add(project)
-            projects = store.projects; recomputeCurrent()
+            reloadProjects()
             status = "Saved “\(trimmed)” (\(bundleIDs.count) apps)."
         } catch ProjectStore.StoreError.capExceeded {
             status = "Reached the desktop limit."
@@ -249,7 +258,7 @@ final class AppModel: ObservableObject {
         let trimmed = newName.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty, var p = projects.first(where: { $0.id == project.id }) else { return }
         p.name = trimmed
-        store.update(p); projects = store.projects; recomputeCurrent()
+        store.update(p); reloadProjects()
         status = "Renamed to “\(trimmed)”."
     }
 
@@ -262,12 +271,12 @@ final class AppModel: ObservableObject {
         }
         guard var p = projects.first(where: { $0.id == project.id }) else { return }
         p.blueprint.bundleIDs = Array(Set(AppInspector.appsOnCurrentDesktop().map { $0.bundleID })).sorted()
-        store.update(p); projects = store.projects; recomputeCurrent()
+        store.update(p); reloadProjects()
         status = "Updated “\(p.name)” apps (\(p.blueprint.bundleIDs.count))."
     }
 
     func delete(_ project: Project) {
-        store.remove(id: project.id); projects = store.projects; recomputeCurrent()
+        store.remove(id: project.id); reloadProjects()
         status = "Deleted “\(project.name)”."
     }
 
@@ -300,7 +309,7 @@ final class AppModel: ObservableObject {
         let trimmedTitle = rawTitle.trimmingCharacters(in: .whitespaces)
         let title = trimmedTitle.isEmpty ? (URL(string: url)?.host ?? url) : trimmedTitle
         p.blueprint.links.append(Link(url: url, title: title))
-        store.update(p); projects = store.projects; recomputeCurrent()
+        store.update(p); reloadProjects()
         status = "Added “\(title)” to “\(p.name)”."
     }
 
@@ -308,7 +317,7 @@ final class AppModel: ObservableObject {
     func removeLink(_ id: UUID, from project: Project) {
         guard var p = projects.first(where: { $0.id == project.id }) else { return }
         p.blueprint.links.removeAll { $0.id == id }
-        store.update(p); projects = store.projects; recomputeCurrent()
+        store.update(p); reloadProjects()
     }
 
     // MARK: Checklist (U3)
@@ -318,7 +327,7 @@ final class AppModel: ObservableObject {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty, var p = projects.first(where: { $0.id == project.id }) else { return }
         p.blueprint.checklist.append(ChecklistItem(text: trimmed))
-        store.update(p); projects = store.projects; recomputeCurrent()
+        store.update(p); reloadProjects()
     }
 
     /// Flip an item's done state.
@@ -326,28 +335,28 @@ final class AppModel: ObservableObject {
         guard var p = projects.first(where: { $0.id == project.id }),
               let i = p.blueprint.checklist.firstIndex(where: { $0.id == id }) else { return }
         p.blueprint.checklist[i].done.toggle()
-        store.update(p); projects = store.projects; recomputeCurrent()
+        store.update(p); reloadProjects()
     }
 
     /// Remove an item from the checklist.
     func removeChecklistItem(_ id: UUID, from project: Project) {
         guard var p = projects.first(where: { $0.id == project.id }) else { return }
         p.blueprint.checklist.removeAll { $0.id == id }
-        store.update(p); projects = store.projects; recomputeCurrent()
+        store.update(p); reloadProjects()
     }
 
     /// Set (or clear → auto) the project's identity icon (an SF Symbol name).
     func setIcon(_ symbol: String?, for project: Project) {
         guard var p = projects.first(where: { $0.id == project.id }) else { return }
         p.iconName = symbol
-        store.update(p); projects = store.projects; recomputeCurrent()
+        store.update(p); reloadProjects()
     }
 
     /// Bind (or clear, nil = system default) the Chrome profile a project opens in.
     func setChromeProfile(_ folder: String?, for project: Project) {
         guard var p = projects.first(where: { $0.id == project.id }) else { return }
         p.chromeProfileFolder = folder
-        store.update(p); projects = store.projects; recomputeCurrent()
+        store.update(p); reloadProjects()
         if let folder, let name = chromeProfiles.first(where: { $0.folder == folder })?.displayName {
             status = "“\(p.name)” links open in \(name)."
         } else {
@@ -366,7 +375,7 @@ final class AppModel: ObservableObject {
         }
         guard var p = projects.first(where: { $0.id == project.id }) else { return }
         p.spaceUUID = uuid; p.drifted = false
-        store.update(p); projects = store.projects; recomputeCurrent()
+        store.update(p); reloadProjects()
         recomputeDrift()
         status = "Recalibrated “\(p.name)” to this desktop."
     }
@@ -387,7 +396,7 @@ final class AppModel: ObservableObject {
         }
         guard var p = projects.first(where: { $0.id == project.id }) else { return }
         p.spaceUUID = target; p.drifted = false
-        store.update(p); projects = store.projects; recomputeCurrent(); recomputeDrift()
+        store.update(p); reloadProjects(); recomputeDrift()
         bringUpApps(p)   // switches to the target desktop and opens the recipe there
     }
 
@@ -429,7 +438,7 @@ final class AppModel: ObservableObject {
         let bundleIDs = onIt ? Array(Set(AppInspector.appsOnCurrentDesktop().map { $0.bundleID })).sorted() : []
         do {
             try store.add(Project(name: trimmed, spaceUUID: uuid, blueprint: Blueprint(bundleIDs: bundleIDs)))
-            projects = store.projects; recomputeCurrent(); recomputeDrift()
+            reloadProjects(); recomputeDrift()
             status = onIt ? "Named this desktop “\(trimmed)” (\(bundleIDs.count) apps)."
                           : "Named “\(trimmed)” — open it to capture its apps."
         } catch ProjectStore.StoreError.capExceeded {
