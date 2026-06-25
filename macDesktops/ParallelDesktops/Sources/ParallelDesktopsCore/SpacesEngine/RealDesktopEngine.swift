@@ -39,9 +39,9 @@ public struct RealDesktopEngine: SwitchEngine {
         // B-global: target the GLOBAL Ctrl+N index (position across ALL displays,
         // empties counted), re-derived each switch and never cached (KTD-2).
         guard let index = spaces.globalIndex(uuid: uuid) else { return .driftDetected }
-        // Already on the target on ANY display — don't post a key, and don't risk
-        // crediting a no-op (or a concurrent user switch) as a fresh switch.
-        if spaces.isSpaceCurrent(uuid: uuid) { return .switched(latencyMs: 0) }
+        // Always post the shortcut — no "already current → skip" special-case. macOS
+        // does nothing visible if it's already showing (the accepted no-op); verification
+        // then sees it current and returns .switched. Keeps the switch path dead simple.
         guard index <= 9 else { return .notKeyable(index: index) }
         if secureInput.isActive() { return .blocked(.secureInput) }
         if shortcutEnabled(index) == false { return .blocked(.shortcutDisabled) }

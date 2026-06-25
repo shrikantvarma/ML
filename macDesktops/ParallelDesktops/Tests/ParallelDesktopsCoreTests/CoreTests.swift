@@ -211,11 +211,14 @@ final class SwitchEngineTests: XCTestCase {
         if case .switched = result {} else { XCTFail("expected .switched, got \(result)") }
     }
 
-    func testAlreadyOnTargetShortCircuitsWithoutPosting() async {
+    func testAlreadyOnTargetStillPostsAndVerifies() async {
+        // B-global all-desktops switcher: clicking always posts the shortcut (no
+        // "already current → skip post" special-case). Already on B ⇒ post Ctrl+2,
+        // verification sees B current immediately ⇒ .switched.
         let spaces = FakeSpaces(ordered: ["A", "B", "C"], current: "B") // already there
         let poster = FakePoster()
         let result = await engine(spaces, poster).switch(toSpaceUUID: "B")
-        XCTAssertTrue(poster.posted.isEmpty, "no key should be posted when already on target")
+        XCTAssertEqual(poster.posted, [2], "always post the shortcut, even when already on target")
         if case .switched = result {} else { XCTFail("expected .switched, got \(result)") }
     }
 
@@ -297,15 +300,16 @@ final class MultiDisplaySwitchTests: XCTestCase {
         if case .switched = result {} else { XCTFail("expected .switched, got \(result)") }
     }
 
-    func testAlreadyCurrentBeyondNineStillSwitchesWithoutPosting() async {
-        // "S10" is global #10 but already current on display 1. The already-on-target
-        // short-circuit must run BEFORE the ≤9 cap, so this is .switched(0), not .notKeyable.
+    func testBeyondNineIsNotKeyableEvenWhenCurrent() async {
+        // With the always-post model there is no already-current short-circuit, so a
+        // global #10 desktop is .notKeyable regardless of whether it's currently shown
+        // (the UI greys >9 rows so this is never actually clickable). Nothing posted.
         let spaces = FakeMultiDisplaySpaces(
             perDisplay: [["S1","S2","S3","S4","S5","S6"], ["S7","S8","S9","S10"]],
             focused: "S1", currents: ["S1","S10"])
         let poster = FakePoster()
         let result = await engine(spaces, poster).switch(toSpaceUUID: "S10")
-        if case .switched = result {} else { XCTFail("already-current must short-circuit before the >9 cap, got \(result)") }
+        XCTAssertEqual(result, .notKeyable(index: 10))
         XCTAssertTrue(poster.posted.isEmpty)
     }
 
