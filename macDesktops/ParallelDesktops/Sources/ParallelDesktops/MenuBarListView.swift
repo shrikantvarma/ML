@@ -178,13 +178,17 @@ struct MenuBarListView: View {
     }
 
     /// Per-display section header (and the "Not on any display" group header).
+    /// Label on its own full-width line so long display names ("Display 1 · Built-in
+    /// Retina Display") don't truncate; a consistent full-width rule sits beneath.
     @ViewBuilder
     private func sectionDivider(_ name: String, warn: Bool = false) -> some View {
-        HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 3) {
             Text(name.uppercased())
                 .font(.system(size: 9.5, weight: .semibold)).tracking(0.5)
                 .foregroundStyle(warn ? Color.yellow.opacity(0.9) : Color.secondary)
-            Rectangle().fill(Palette.rail).frame(height: 1)
+                .lineLimit(1).truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Rectangle().fill(Palette.rail).frame(maxWidth: .infinity).frame(height: 1)
         }
         .padding(.horizontal, 7).padding(.top, 8).padding(.bottom, 2)
     }
