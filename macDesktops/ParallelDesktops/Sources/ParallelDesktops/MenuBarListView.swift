@@ -25,6 +25,10 @@ struct MenuBarListView: View {
     /// Per-project "add a next step" draft text + hover tracking for checklist rows (U4).
     @State private var checklistDrafts: [UUID: String] = [:]
     @State private var hoveredChecklistID: UUID?
+    /// Hover + inline-naming state for bare (unnamed) desktop rows (keyed by global index / uuid).
+    @State private var hoveredDesktopGI: Int?
+    @State private var namingDesktopUUID: String?
+    @State private var desktopNameText = ""
 
     /// Palette carried from the mock (opacity-based so it adapts to light/dark).
     private enum Palette {
@@ -40,13 +44,21 @@ struct MenuBarListView: View {
 
             if !model.isReady { OnboardingBanner(model: model) }
 
-            if model.projects.isEmpty {
-                Text("No projects yet. Open your apps on a desktop, then save it below.")
+            let hasRows = model.desktopList.sections.contains { !$0.rows.isEmpty }
+            if !hasRows && model.desktopList.offDisplayProjects.isEmpty {
+                Text("No desktops found yet.")
                     .font(.callout).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 VStack(alignment: .leading, spacing: 1) {
-                    ForEach(model.projects) { project in projectRow(project) }
+                    ForEach(model.desktopList.sections) { section in
+                        sectionDivider(section.name)
+                        ForEach(section.rows) { row in desktopRow(row) }
+                    }
+                    if !model.desktopList.offDisplayProjects.isEmpty {
+                        sectionDivider("Not on any display", warn: true)
+                        ForEach(model.desktopList.offDisplayProjects) { offDisplayRow($0) }
+                    }
                 }
             }
 
@@ -91,8 +103,19 @@ struct MenuBarListView: View {
         .onChange(of: model.currentProject?.id) { _, _ in ensureCurrentExpanded() }
     }
 
+    /// A desktop row: dispatches to the rich project row when named, else a light
+    /// "Desktop N" row (switch + name) or a static empty-uuid row.
     @ViewBuilder
-    private func projectRow(_ project: Project) -> some View {
+    private func desktopRow(_ row: DesktopRow) -> some View {
+        if let project = row.project {
+            projectRow(project, row: row)
+        } else {
+            bareDesktopRow(row)
+        }
+    }
+
+    @ViewBuilder
+    private func projectRow(_ project: Project, row: DesktopRow) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             if renamingID == project.id {
                 TextField("Name", text: $renameText, onCommit: {
@@ -100,7 +123,7 @@ struct MenuBarListView: View {
                 })
                 .textFieldStyle(.roundedBorder)
             } else {
-                projectRowMain(project)
+                projectRowMain(project, row: row)
             }
 
             if iconPickingID == project.id {
@@ -121,6 +144,122 @@ struct MenuBarListView: View {
     /// every other row collapses. Keeps the list short and focused on "here".
     private func ensureCurrentExpanded() {
         expandedIDs = model.currentProject.map { [$0.id] } ?? []
+    }
+
+    // MARK: All-desktops switcher rows (U5)
+
+    private func marker(_ row: DesktopRow) -> some View {
+        let glyph: String; let color: Color
+        switch row.marker {
+        case .focused: glyph = "largecircle.fill.circle";  color = .accentColor
+        case .other:   glyph = "smallcircle.filled.circle"; color = .accentColor.opacity(0.6)
+        case .none:    glyph = "circle";                     color = .secondary.opacity(0.35)
+        }
+        return Image(systemName: glyph).font(.caption2).foregroundStyle(color)
+            .help(row.marker == .focused ? "You're on this desktop"
+                  : row.marker == .other ? "Showing on another display" : "")
+    }
+
+    private func numberLabel(_ row: DesktopRow) -> some View {
+        Text("\(row.globalIndex)")
+            .font(.system(size: 10.5)).monospacedDigit()
+            .foregroundStyle(row.keyable ? Color.secondary : Color.secondary.opacity(0.4))
+            .frame(minWidth: 13, alignment: .trailing)
+    }
+
+    /// Per-display section header (and the "Not on any display" group header).
+    @ViewBuilder
+    private func sectionDivider(_ name: String, warn: Bool = false) -> some View {
+        HStack(spacing: 8) {
+            Text(name.uppercased())
+                .font(.system(size: 9.5, weight: .semibold)).tracking(0.5)
+                .foregroundStyle(warn ? Color.yellow.opacity(0.9) : Color.secondary)
+            Rectangle().fill(Palette.rail).frame(height: 1)
+        }
+        .padding(.horizontal, 7).padding(.top, 8).padding(.bottom, 2)
+    }
+
+    /// A desktop with no project: switchable "Desktop N" with inline Name…, or a
+    /// static "no stable ID" row for empty-uuid desktops.
+    @ViewBuilder
+    private func bareDesktopRow(_ row: DesktopRow) -> some View {
+        let hovered = hoveredDesktopGI == row.globalIndex
+        let active = row.marker != .none
+        Group {
+            if row.isEmptyNoID {
+                HStack(spacing: 8) {
+                    marker(row); numberLabel(row)
+                    Image(systemName: "questionmark.square.dashed").font(.system(size: 13)).foregroundStyle(.tertiary)
+                    Text("Desktop \(row.globalIndex) · no stable ID").foregroundStyle(.tertiary)
+                    Spacer()
+                }
+            } else if namingDesktopUUID == row.uuid {
+                HStack(spacing: 8) {
+                    marker(row); numberLabel(row)
+                    TextField("Name this desktop…", text: $desktopNameText, onCommit: {
+                        model.assignName(desktopNameText, toDesktopUUID: row.uuid)
+                        namingDesktopUUID = nil; desktopNameText = ""
+                    })
+                    .textFieldStyle(.roundedBorder)
+                }
+            } else {
+                HStack(spacing: 6) {
+                    Button {
+                        if row.keyable { model.enterDesktop(row.uuid) }
+                        else { model.status = "Desktop \(row.globalIndex) is past Ctrl+9 — can’t switch to it." }
+                    } label: {
+                        HStack(spacing: 8) {
+                            marker(row); numberLabel(row)
+                            Image(systemName: "square.dashed").font(.system(size: 13)).foregroundStyle(.secondary)
+                            Text("Desktop \(row.globalIndex)").italic().foregroundStyle(.secondary)
+                            Spacer()
+                            if !row.keyable {
+                                Text("can't switch").font(.system(size: 10)).foregroundStyle(.tertiary)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    Button("Name…") { namingDesktopUUID = row.uuid; desktopNameText = ""; renamingID = nil }
+                        .buttonStyle(.borderless).controlSize(.small)
+                        .opacity(hovered ? 1 : 0)
+                }
+            }
+        }
+        .padding(.horizontal, 7).padding(.vertical, 5)
+        .background(RoundedRectangle(cornerRadius: 7)
+            .fill(active ? Palette.accentSoft : (hovered ? Palette.hover : Color.clear)))
+        .onHover { inside in
+            hoveredDesktopGI = inside ? row.globalIndex : (hoveredDesktopGI == row.globalIndex ? nil : hoveredDesktopGI)
+        }
+    }
+
+    /// A project whose desktop is gone — switch disabled; reassign / open-here.
+    @ViewBuilder
+    private func offDisplayRow(_ project: Project) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.yellow).font(.caption)
+            Text(project.name)
+            Spacer()
+            Menu {
+                Button("Open on this screen") { model.openHere(project) }
+                Button("Reassign to this desktop") { model.recalibrate(project) }
+                Divider()
+                Button("Delete", role: .destructive) { model.delete(project) }
+            } label: {
+                Image(systemName: "ellipsis").font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
+            }
+            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().frame(width: 22)
+        }
+        .padding(.horizontal, 7).padding(.vertical, 5)
+        .help("“\(project.name)” isn't on any connected display")
+    }
+
+    /// Where "Open on → [display]" lands: that display's current desktop, else its
+    /// first nameable desktop.
+    private func relocateTarget(in section: DisplaySection) -> String? {
+        section.rows.first(where: { $0.marker != .none })?.uuid
+            ?? section.rows.first(where: { !$0.isEmptyNoID })?.uuid
     }
 
     /// The project's "what's next" checklist: toggleable items + an always-present
@@ -226,18 +365,20 @@ struct MenuBarListView: View {
     }
 
     @ViewBuilder
-    private func projectRowMain(_ project: Project) -> some View {
-        let isCurrent = model.currentProject?.id == project.id
+    private func projectRowMain(_ project: Project, row: DesktopRow) -> some View {
+        let isCurrent = row.marker == .focused
+        let active = row.marker != .none
         let links = project.blueprint.links
         let hovered = hoveredRowID == project.id
 
         HStack(spacing: 6) {
-            Button { model.enter(project) } label: {
+            Button {
+                if row.keyable { model.enter(project) }
+                else { model.status = "“\(project.name)” is past Ctrl+9 — can’t switch to it." }
+            } label: {
                 HStack(spacing: 8) {
-                    Image(systemName: isCurrent ? "largecircle.fill.circle" : "circle")
-                        .font(.caption2)
-                        .foregroundStyle(isCurrent ? Color.accentColor : Color.secondary.opacity(0.35))
-                        .help(isCurrent ? "You're on this desktop" : "")
+                    marker(row)
+                    numberLabel(row)
                     Group {
                         if let emoji = project.emoji, !emoji.isEmpty {
                             Text(emoji).font(.system(size: 15))
@@ -251,18 +392,8 @@ struct MenuBarListView: View {
                     }
                     .frame(width: 22, height: 22)
                     Text(project.name).fontWeight(isCurrent ? .semibold : .regular)
-                    // Which display this project's desktop lives on — only shown with
-                    // multiple displays attached, so single-monitor users see nothing.
-                    if model.displayCount > 1, let ordinal = model.displayOrdinals[project.id] {
-                        HStack(spacing: 2) {
-                            Image(systemName: "display").font(.system(size: 8.5))
-                            Text("\(ordinal)").font(.system(size: 9.5, weight: .medium))
-                        }
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 5).padding(.vertical, 1)
-                        .background(Capsule().fill(Palette.badge))
-                        .help("On Display \(ordinal)")
-                    }
+                    // Display membership is now conveyed by the section grouping, so the
+                    // per-row "Display N" badge is no longer needed here.
                     Spacer()
                     if project.drifted {
                         Image(systemName: "exclamationmark.triangle.fill")
@@ -303,6 +434,15 @@ struct MenuBarListView: View {
 
             Menu {
                         Button("Bring up here") { model.bringUpApps(project) }
+                        if model.desktopList.sections.count > 1 {
+                            Menu("Open on display…") {
+                                ForEach(model.desktopList.sections) { section in
+                                    if let target = relocateTarget(in: section) {
+                                        Button(section.name) { model.relocate(project, toDesktopUUID: target) }
+                                    }
+                                }
+                            }
+                        }
                         Button("Add link…") { beginAddLink(project) }
                         if !model.chromeProfiles.isEmpty {
                             Menu("Open links in profile…") {
@@ -341,7 +481,7 @@ struct MenuBarListView: View {
             .padding(.horizontal, 7).padding(.vertical, 5)
             .background(
                 RoundedRectangle(cornerRadius: 7)
-                    .fill(isCurrent ? Palette.accentSoft : (hovered ? Palette.hover : Color.clear))
+                    .fill(active ? Palette.accentSoft : (hovered ? Palette.hover : Color.clear))
             )
             .onHover { inside in
                 hoveredRowID = inside ? project.id : (hoveredRowID == project.id ? nil : hoveredRowID)

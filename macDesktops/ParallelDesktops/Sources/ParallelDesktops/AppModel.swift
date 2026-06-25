@@ -15,12 +15,6 @@ final class AppModel: ObservableObject {
     /// The project bound to the desktop you're currently on (nil if none) — drives
     /// the menu-bar title and the "current" marker in the list.
     @Published var currentProject: Project?
-    /// Number of displays currently attached (≥1). The UI shows per-project display
-    /// badges only when this is >1, so single-monitor users see no extra chrome.
-    @Published var displayCount: Int = 1
-    /// project.id → 1-based display ordinal hosting its desktop (Display 1, 2, …).
-    /// Absent for a drifted/orphaned project whose desktop isn't on any display.
-    @Published var displayOrdinals: [UUID: Int] = [:]
     /// Every live desktop across all displays, joined with the projects bound to
     /// them — the source of truth for the all-desktops switcher (U1 model).
     @Published var desktopList = DesktopList(sections: [], offDisplayProjects: [])
@@ -109,19 +103,11 @@ final class AppModel: ObservableObject {
     /// when no notification fired (focus-only display switches don't post one).
     func refreshFocusedProject() {
         recomputeCurrent()
-        refreshDisplayMap()
+        refreshDesktopList()
     }
 
-    /// Snapshot which display each project's desktop lives on. One CGS read; the
-    /// ordinals are derived from that single snapshot (no per-project IPC).
-    private func refreshDisplayMap() {
-        let groups = spaces.displaysWithDesktops()
-        displayCount = groups.count
-        var map: [UUID: Int] = [:]
-        for p in projects where SpaceIdentity.isTrackable(p.spaceUUID) {
-            if let i = groups.firstIndex(where: { $0.contains(p.spaceUUID) }) { map[p.id] = i + 1 }
-        }
-        displayOrdinals = map
+    /// Rebuild the all-desktops switcher model from the live read + the project list.
+    private func refreshDesktopList() {
         desktopList = DesktopList.make(spaces: spaces, projects: projects,
                                        displayNames: friendlyDisplayNames())
     }
@@ -221,7 +207,7 @@ final class AppModel: ObservableObject {
             projects[i].drifted = drifted.contains(projects[i].spaceUUID)
             store.update(projects[i])
         }
-        refreshDisplayMap()   // display topology may have changed alongside presence
+        refreshDesktopList()   // display topology may have changed alongside presence
     }
 
     // MARK: Capture / edit (U7)
@@ -412,6 +398,45 @@ final class AppModel: ObservableObject {
             status = "This desktop can’t host a project yet — it has no stable identity."; return
         }
         relocate(project, toDesktopUUID: uuid)
+    }
+
+    /// Switch to a bare (unnamed) desktop by its UUID — the switcher clicks desktops,
+    /// not only projects. Always-post via the engine; refresh drift on a stale uuid.
+    func enterDesktop(_ uuid: String) {
+        guard SpaceIdentity.isTrackable(uuid) else { return }
+        status = "Switching…"
+        Task {
+            let result = await engine.switch(toSpaceUUID: uuid)
+            if case .notKeyable = result { status = "That desktop is past Ctrl+9 — can’t switch to it." }
+            else if case .driftDetected = result { recomputeDrift() }
+            else { status = "" }
+        }
+    }
+
+    /// Name an unnamed desktop in place: bind a new Project to its UUID. Apps are
+    /// captured only when you're actually on that desktop (you can name one you're not
+    /// on — the apps fill in later via "Update apps" / "Bring up").
+    func assignName(_ name: String, toDesktopUUID uuid: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { status = "Name the desktop first."; return }
+        guard SpaceIdentity.isTrackable(uuid) else {
+            status = "This desktop has no stable identity — it can’t be named."; return
+        }
+        if let other = store.project(forSpaceUUID: uuid) {
+            status = "That desktop is already “\(other.name)”."; return
+        }
+        let onIt = spaces.focusedCurrentSpaceUUID() == uuid
+        let bundleIDs = onIt ? Array(Set(AppInspector.appsOnCurrentDesktop().map { $0.bundleID })).sorted() : []
+        do {
+            try store.add(Project(name: trimmed, spaceUUID: uuid, blueprint: Blueprint(bundleIDs: bundleIDs)))
+            projects = store.projects; recomputeCurrent(); recomputeDrift()
+            status = onIt ? "Named this desktop “\(trimmed)” (\(bundleIDs.count) apps)."
+                          : "Named “\(trimmed)” — open it to capture its apps."
+        } catch ProjectStore.StoreError.capExceeded {
+            status = "Reached the desktop limit."
+        } catch {
+            status = "Couldn’t save “\(trimmed)” — disk error."
+        }
     }
 
     // MARK: Enter (U8)
