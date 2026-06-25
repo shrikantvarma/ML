@@ -383,14 +383,24 @@ final class AppModel: ObservableObject {
         guard let uuid = spaces.focusedCurrentSpaceUUID(), SpaceIdentity.isTrackable(uuid) else {
             status = "This desktop can’t host a project yet — it has no stable identity."; return
         }
+        reassign(project, toDesktopUUID: uuid)
+    }
+
+    /// Rebind a project to a SPECIFIC desktop by UUID (any display) — lets you
+    /// recover a "Not on any display" project onto a chosen free desktop without
+    /// having to be focused on it. Refuses an untrackable or already-hosted desktop.
+    func reassign(_ project: Project, toDesktopUUID uuid: String) {
+        guard SpaceIdentity.isTrackable(uuid) else {
+            status = "That desktop has no stable identity yet — can’t reassign there."; return
+        }
         if let other = store.project(forSpaceUUID: uuid), other.id != project.id {
-            status = "This desktop already hosts “\(other.name)”."; return
+            status = "That desktop already hosts “\(other.name)”."; return
         }
         guard var p = projects.first(where: { $0.id == project.id }) else { return }
         p.spaceUUID = uuid; p.drifted = false
         store.update(p); reloadProjects()
         recomputeDrift()
-        status = "Recalibrated “\(p.name)” to this desktop."
+        status = "Reassigned “\(p.name)” to that desktop."
     }
 
     // MARK: Relocate / open on a chosen display (all-desktops switcher U4)

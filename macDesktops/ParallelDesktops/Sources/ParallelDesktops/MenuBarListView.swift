@@ -260,6 +260,20 @@ struct MenuBarListView: View {
             Menu {
                 Button("Open on this screen") { model.openHere(project) }
                 Button("Reassign to this desktop") { model.recalibrate(project) }
+                Menu("Reassign to a free desktop…") {
+                    let freeRows = model.desktopList.sections.flatMap { sec in
+                        sec.rows.filter { $0.isUnnamed }.map { (sec.name, $0) }
+                    }
+                    if freeRows.isEmpty {
+                        Button("No empty desktops — create one first") {}.disabled(true)
+                    } else {
+                        ForEach(freeRows, id: \.1.id) { name, row in
+                            Button("\(name) · Desktop \(row.globalIndex)") {
+                                model.reassign(project, toDesktopUUID: row.uuid)
+                            }
+                        }
+                    }
+                }
                 Divider()
                 Button("Delete", role: .destructive) { model.delete(project) }
             } label: {
