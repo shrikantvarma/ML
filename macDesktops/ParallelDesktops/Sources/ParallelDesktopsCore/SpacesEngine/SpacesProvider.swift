@@ -29,6 +29,9 @@ public protocol SpacesProvider {
     func focusedCurrentSpaceUUID() -> String?
     /// Is `uuid` the current desktop of ANY display? (trackable only)
     func isSpaceCurrent(uuid: String) -> Bool
+    /// Per-display hardware identifiers, in the same order as `displaysWithDesktops()`.
+    /// Used to map displays to friendly `NSScreen` names. Empty when unknown.
+    func displayIdentifiers() -> [String]
 }
 
 public extension SpacesProvider {
@@ -46,6 +49,7 @@ public extension SpacesProvider {
     func displaysWithDesktops() -> [[String]] { [orderedUserSpaceUUIDs()] }
     func focusedCurrentSpaceUUID() -> String? { currentSpaceUUID() }
     func isSpaceCurrent(uuid: String) -> Bool { currentSpaceUUID() == uuid }
+    func displayIdentifiers() -> [String] { [] }   // single-display default ⇒ fall back to "Display N"
 
     /// 1-based ordinal of the display hosting `uuid`'s desktop (Display 1, 2, …).
     /// nil for an untrackable or absent uuid.
@@ -91,5 +95,8 @@ public struct CGSSpacesProvider: SpacesProvider {
     public func isSpaceCurrent(uuid: String) -> Bool {
         guard SpaceIdentity.isTrackable(uuid) else { return false }
         return CGS.allDisplays().contains { $0.currentSpaceUUID == uuid }
+    }
+    public func displayIdentifiers() -> [String] {
+        CGS.allDisplays().map { $0.displayIdentifier }
     }
 }

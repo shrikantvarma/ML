@@ -50,6 +50,11 @@ public struct DesktopList {
     /// disconnected) — shown in the "Not on any display" group for reassign.
     public let offDisplayProjects: [Project]
 
+    public init(sections: [DisplaySection], offDisplayProjects: [Project]) {
+        self.sections = sections
+        self.offDisplayProjects = offDisplayProjects
+    }
+
     /// Pure join of live desktops ⋈ projects-by-UUID.
     /// - `displayNames`: friendly names by 0-based display index; missing → "Display N".
     public static func make(spaces: SpacesProvider,

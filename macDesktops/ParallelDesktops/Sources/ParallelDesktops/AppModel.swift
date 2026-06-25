@@ -21,6 +21,9 @@ final class AppModel: ObservableObject {
     /// project.id → 1-based display ordinal hosting its desktop (Display 1, 2, …).
     /// Absent for a drifted/orphaned project whose desktop isn't on any display.
     @Published var displayOrdinals: [UUID: Int] = [:]
+    /// Every live desktop across all displays, joined with the projects bound to
+    /// them — the source of truth for the all-desktops switcher (U1 model).
+    @Published var desktopList = DesktopList(sections: [], offDisplayProjects: [])
 
     private lazy var resumeCard = ResumeCardController()
     private lazy var recap = RecapController(onEnter: { [weak self] in self?.enter($0) })
@@ -91,6 +94,14 @@ final class AppModel: ObservableObject {
                 self?.refreshPermissions()   // catches return from System Settings
             }
         }
+        // Display connect/disconnect: re-derive presence so a returning display's
+        // projects auto-un-drift (their UUIDs persist), and a leaving display's
+        // projects fall to "Not on any display" without manual action.
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.recomputeDrift() }
+        }
     }
 
     /// Re-resolve the focused display's project on demand. Called when the menu
@@ -111,6 +122,25 @@ final class AppModel: ObservableObject {
             if let i = groups.firstIndex(where: { $0.contains(p.spaceUUID) }) { map[p.id] = i + 1 }
         }
         displayOrdinals = map
+        desktopList = DesktopList.make(spaces: spaces, projects: projects,
+                                       displayNames: friendlyDisplayNames())
+    }
+
+    /// Section labels for the switcher: "Display N · <friendly name>" when the CGS
+    /// display can be matched to an `NSScreen`, else just "Display N".
+    private func friendlyDisplayNames() -> [String] {
+        let ids = spaces.displayIdentifiers()
+        guard !ids.isEmpty else { return [] }   // model falls back to "Display N"
+        var nameByUUID: [String: String] = [:]
+        for screen in NSScreen.screens {
+            guard let num = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value,
+                  let cf = CGDisplayCreateUUIDFromDisplayID(num)?.takeRetainedValue() else { continue }
+            nameByUUID[CFUUIDCreateString(nil, cf) as String] = screen.localizedName
+        }
+        return ids.enumerated().map { index, id in
+            if let name = nameByUUID[id] { return "Display \(index + 1) · \(name)" }
+            return "Display \(index + 1)"
+        }
     }
 
     func refreshPermissions() {
