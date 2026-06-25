@@ -385,6 +385,35 @@ final class AppModel: ObservableObject {
         status = "Recalibrated “\(p.name)” to this desktop."
     }
 
+    // MARK: Relocate / open on a chosen display (all-desktops switcher U4)
+
+    /// Move a project onto a chosen desktop on any display: rebind its home to that
+    /// desktop's UUID, then bring up its recipe there (switch + open). The desktop is
+    /// a disposable surface; the project is the anchor we project onto it. Links are
+    /// reconstructed deterministically; native apps are best-effort (macOS won't move
+    /// existing windows — see bringUpApps).
+    func relocate(_ project: Project, toDesktopUUID target: String) {
+        guard SpaceIdentity.isTrackable(target) else {
+            status = "That desktop has no stable identity — can’t place a project there."; return
+        }
+        if let other = store.project(forSpaceUUID: target), other.id != project.id {
+            status = "That desktop already hosts “\(other.name)”."; return
+        }
+        guard var p = projects.first(where: { $0.id == project.id }) else { return }
+        p.spaceUUID = target; p.drifted = false
+        store.update(p); projects = store.projects; recomputeCurrent(); recomputeDrift()
+        bringUpApps(p)   // switches to the target desktop and opens the recipe there
+    }
+
+    /// "Open on this screen": place a project (typically one whose desktop vanished)
+    /// onto the desktop currently focused, on whatever display you're on now.
+    func openHere(_ project: Project) {
+        guard let uuid = spaces.focusedCurrentSpaceUUID(), SpaceIdentity.isTrackable(uuid) else {
+            status = "This desktop can’t host a project yet — it has no stable identity."; return
+        }
+        relocate(project, toDesktopUUID: uuid)
+    }
+
     // MARK: Enter (U8)
 
     /// Clicking a project SWITCHES only — no side effects (plan U8, refined: boot
