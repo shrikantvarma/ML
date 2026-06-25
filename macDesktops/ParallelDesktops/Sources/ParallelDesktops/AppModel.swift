@@ -18,6 +18,9 @@ final class AppModel: ObservableObject {
     /// Every live desktop across all displays, joined with the projects bound to
     /// them — the source of truth for the all-desktops switcher (U1 model).
     @Published var desktopList = DesktopList(sections: [], offDisplayProjects: [])
+    /// True when the focused desktop has no stable id yet (a freshly-synthesized,
+    /// uncommitted Space). Drives the "open a window here to name it" stabilize hint.
+    @Published var focusedDesktopUntrackable = false
 
     private lazy var resumeCard = ResumeCardController()
     private lazy var recap = RecapController(onEnter: { [weak self] in self?.enter($0) })
@@ -202,7 +205,12 @@ final class AppModel: ObservableObject {
 
     private func recomputeCurrent() {
         // "Current project" is the one on the display the user is actually focused on.
-        currentProject = spaces.focusedCurrentSpaceUUID().flatMap { store.project(forSpaceUUID: $0) }
+        let focused = spaces.focusedCurrentSpaceUUID()
+        currentProject = focused.flatMap { store.project(forSpaceUUID: $0) }
+        // Stabilize-assist signal: you're focused on a desktop with no stable id yet —
+        // focusedCurrentSpaceUUID() returns nil for an untrackable current while desktops
+        // exist. Opening a window there prompts macOS to commit a UUID (→ then nameable).
+        focusedDesktopUntrackable = (focused == nil) && spaces.displaysWithDesktops().contains { !$0.isEmpty }
     }
 
     private func recomputeDrift() {

@@ -73,6 +73,16 @@ struct MenuBarListView: View {
                         .font(.caption2).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+            } else if model.focusedDesktopUntrackable {
+                // Stabilize-assist: the focused desktop has no stable id yet, so it can't be
+                // saved/named. Tell the user the one action that fixes it.
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: "questionmark.circle.fill")
+                        .foregroundStyle(.yellow).font(.caption)
+                    Text("This desktop has no stable ID yet. Open or drag a window onto it, then reopen this menu — macOS will give it an ID and you can name it.")
+                        .font(.caption2).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             } else {
                 HStack {
                     TextField("Save this desktop as…", text: $newName)
