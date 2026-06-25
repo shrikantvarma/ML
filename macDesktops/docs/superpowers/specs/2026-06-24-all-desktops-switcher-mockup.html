@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>All-Desktops Switcher — Interactive Mockup</title>
+<style>
+  :root{
+    --bg:#1c1c1e; --panel:rgba(44,44,46,.92); --stroke:rgba(255,255,255,.10);
+    --txt:#f2f2f7; --txt2:rgba(235,235,245,.6); --txt3:rgba(235,235,245,.35);
+    --accent:#0a84ff; --accent-soft:rgba(10,132,255,.22);
+    --warn:#ffd60a; --hover:rgba(255,255,255,.07); --badge:rgba(255,255,255,.10);
+    --grey:rgba(235,235,245,.28);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:linear-gradient(135deg,#3a3a3c,#1c1c1e 60%);color:var(--txt);
+       min-height:100vh;padding:28px;display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap}
+  h1{font-size:18px;margin:0 0 2px}
+  .sub{color:var(--txt2);font-size:12.5px;margin:0 0 18px;max-width:340px;line-height:1.5}
+
+  /* left: scenario picker + notes */
+  .controls{width:300px;flex:0 0 auto}
+  .scn{display:block;width:100%;text-align:left;background:rgba(255,255,255,.05);
+       border:1px solid var(--stroke);color:var(--txt);padding:9px 12px;border-radius:9px;
+       margin-bottom:7px;cursor:pointer;font-size:13px;transition:.12s}
+  .scn:hover{background:rgba(255,255,255,.10)}
+  .scn.active{background:var(--accent-soft);border-color:var(--accent)}
+  .scn small{display:block;color:var(--txt2);font-size:11px;margin-top:2px}
+  .note{margin-top:16px;font-size:12px;color:var(--txt2);line-height:1.55;
+        background:rgba(0,0,0,.25);border:1px solid var(--stroke);border-radius:10px;padding:12px}
+  .note b{color:var(--txt)}
+  .legend{margin-top:14px;font-size:11.5px;color:var(--txt2);line-height:1.9}
+  .legend code{color:var(--txt);background:rgba(255,255,255,.08);padding:1px 5px;border-radius:5px}
+
+  /* the popover */
+  .stage{flex:1 1 360px;display:flex;flex-direction:column;align-items:center;gap:14px;min-width:360px}
+  .menubar{width:100%;max-width:560px;height:26px;border-radius:7px;
+           background:rgba(255,255,255,.10);display:flex;align-items:center;justify-content:flex-end;
+           gap:14px;padding:0 12px;font-size:12px;color:var(--txt2)}
+  .menubar .mb-app{color:var(--txt);font-weight:600}
+  .popover{width:330px;background:var(--panel);backdrop-filter:blur(30px);
+           border:1px solid var(--stroke);border-radius:13px;padding:11px 10px 9px;
+           box-shadow:0 18px 50px rgba(0,0,0,.5)}
+  .pop-title{font-size:13px;font-weight:700;padding:2px 6px 9px}
+  .divider{display:flex;align-items:center;gap:8px;color:var(--txt2);font-size:10.5px;
+           font-weight:600;letter-spacing:.4px;text-transform:uppercase;margin:8px 6px 4px}
+  .divider::after{content:"";flex:1;height:1px;background:var(--stroke)}
+  .group-off .divider{color:var(--warn)}
+
+  .row{display:flex;align-items:center;gap:9px;padding:6px 7px;border-radius:8px;cursor:pointer;
+       position:relative;transition:.1s}
+  .row:hover{background:var(--hover)}
+  .row.disabled{cursor:default;opacity:.55}
+  .row.disabled:hover{background:transparent}
+  .marker{width:13px;text-align:center;font-size:11px;flex:0 0 auto}
+  .m-focus{color:var(--accent)}
+  .m-other{color:#5e9eff}
+  .m-none{color:var(--txt3)}
+  .num{width:15px;text-align:center;font-size:11px;color:var(--txt2);flex:0 0 auto;font-variant-numeric:tabular-nums}
+  .icon{width:18px;text-align:center;font-size:14px;flex:0 0 auto}
+  .name{flex:1;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .name.unnamed{color:var(--txt2);font-style:italic}
+  .name.named{font-weight:600}
+  .key{font-size:10.5px;color:var(--txt3);font-variant-numeric:tabular-nums;flex:0 0 auto}
+  .tag{font-size:10px;color:var(--txt2);background:var(--badge);padding:1px 6px;border-radius:20px;flex:0 0 auto}
+  .warnflag{color:var(--warn);font-size:12px;flex:0 0 auto}
+  .actions{display:flex;gap:4px;opacity:0;transition:.1s;flex:0 0 auto}
+  .row:hover .actions{opacity:1}
+  .abtn{font-size:11px;color:var(--txt2);background:rgba(255,255,255,.08);border:none;
+        border-radius:6px;padding:2px 7px;cursor:pointer}
+  .abtn:hover{background:var(--accent);color:#fff}
+  .reassign{font-size:11px;color:#fff;background:var(--accent);border:none;border-radius:6px;
+            padding:3px 9px;cursor:pointer;flex:0 0 auto}
+  .greylabel{font-size:10px;color:var(--txt3);flex:0 0 auto}
+  .nameedit{flex:1;display:flex;gap:6px}
+  .nameedit input{flex:1;background:rgba(255,255,255,.12);border:1px solid var(--accent);
+                  color:var(--txt);border-radius:6px;padding:3px 7px;font-size:13px;outline:none}
+  .footer{border-top:1px solid var(--stroke);margin-top:9px;padding-top:8px}
+  .save-row{display:flex;gap:7px;padding:0 4px}
+  .save-row input{flex:1;background:rgba(255,255,255,.10);border:1px solid var(--stroke);
+                  color:var(--txt);border-radius:7px;padding:5px 9px;font-size:12.5px;outline:none}
+  .hint{font-size:11px;color:var(--txt2);padding:5px 6px 0}
+
+  .lblstyle{display:flex;gap:5px;margin-bottom:9px;font-size:11px;color:var(--txt2);align-items:center;flex-wrap:wrap}
+  .lblstyle button{background:rgba(255,255,255,.06);border:1px solid var(--stroke);color:var(--txt2);
+                   border-radius:6px;padding:3px 9px;cursor:pointer;font-size:11px}
+  .lblstyle button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .chip{display:inline-flex;width:17px;height:17px;align-items:center;justify-content:center;border-radius:5px;
+        background:rgba(255,255,255,.14);font-size:11px;font-weight:700;margin-right:3px;color:var(--txt)}
+  .chip-f{background:var(--accent);color:#fff;box-shadow:0 0 0 1.5px rgba(255,255,255,.45)}
+  .plusn{font-size:11px;color:var(--txt2);margin-left:2px}
+  .row.active-row{background:rgba(10,132,255,.10)}
+  .row.active-row:hover{background:rgba(10,132,255,.16)}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+         background:var(--accent);color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;
+         box-shadow:0 8px 30px rgba(0,0,0,.4);opacity:0;transition:.25s;pointer-events:none;max-width:80vw}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+  <div class="controls">
+    <h1>All-Desktops Switcher</h1>
+    <p class="sub">Click a scenario, then poke the menu. Hover rows for actions. This is a
+    throwaway prototype to lock the interactions — not the real app.</p>
+    <div id="scnList"></div>
+    <div class="note" id="note"></div>
+    <div class="legend">
+      <code>◉</code> current on focused display ·
+      <code>◐</code> current on other display ·
+      <code>○</code> not current<br>
+      <code>⌃N</code> = the macOS switch key · italic = unnamed desktop
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="lblstyle">Menu-bar label:
+      <button data-ls="a" class="on" onclick="setLbl('a')">Focused only</button>
+      <button data-ls="b" onclick="setLbl('b')">Multi-glyph</button>
+      <button data-ls="c" onclick="setLbl('c')">Focused +N</button>
+    </div>
+    <div class="menubar"><span>􀙇</span> <span class="mb-app" id="mbLabel">◳ Build</span> <span>􀊫</span> <span>􀛪</span> <span>9:41</span></div>
+    <div class="popover" id="popover"></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+const A=(uuid,n)=>({uuid,n});
+// scenarios -------------------------------------------------------------
+const scenarios = {
+  normal: {
+    label:"Normal — 2 displays live",
+    desc:"Two “current” markers at once: <b>◉</b> on the MacBook (where you're focused), <b>◐</b> on the iPad. The menu-bar label up top can only show one (the focused one) — that's why we need the list.",
+    displays:[
+      {name:"Display 1 · MacBook", rows:[
+        {gi:1,name:"Build",cur:"focus"},
+        {gi:2,name:"Main"},
+        {gi:3,unnamed:true},
+      ]},
+      {name:"Display 2 · iPad", rows:[
+        {gi:4,name:"Research",cur:"other"},
+        {gi:5,unnamed:true},
+      ]},
+    ],
+    off:[{name:"Comms"}],
+    focusLabel:"◳ Build"
+  },
+  three: {
+    label:"Three displays active at once",
+    desc:"Three desktops live simultaneously — one per display. The <b>dropdown</b> shows all three (each marked, highlighted, under its own display). The <b>label</b> up top can only pick one strategy — try the <b>toggle above the menu bar</b> to compare Focused-only / Multi-glyph / +N.",
+    displays:[
+      {name:"Display 1 · MacBook", rows:[
+        {gi:1,name:"Build",cur:"focus"},{gi:2,name:"Main"},{gi:3,unnamed:true},
+      ]},
+      {name:"Display 2 · iPad", rows:[
+        {gi:4,name:"Research",cur:"other"},{gi:5,unnamed:true},
+      ]},
+      {name:"Display 3 · Monitor", rows:[
+        {gi:6,name:"Mail",cur:"other"},{gi:7,unnamed:true},
+      ]},
+    ],
+    off:[],
+    focusLabel:"◳ Build"
+  },
+  switchwork: {
+    label:"Switch to the iPad from MacBook",
+    desc:"Click <b>Research</b> (Display 2). We post <code>⌃4</code>; the iPad flips to it and focus follows there. Proven live. Try clicking any row — watch the markers move and the toast.",
+    displays:[
+      {name:"Display 1 · MacBook", rows:[
+        {gi:1,name:"Build",cur:"focus"},
+        {gi:2,name:"Main"},
+        {gi:3,unnamed:true},
+      ]},
+      {name:"Display 2 · iPad", rows:[
+        {gi:4,name:"Research",cur:"other"},
+        {gi:5,unnamed:true},
+      ]},
+    ],
+    off:[{name:"Comms"}],
+    interactive:true,
+    focusLabel:"◳ Build"
+  },
+  naming: {
+    label:"Name / assign an unnamed desktop",
+    desc:"Hover an unnamed row → <b>Name</b>. Inline field appears (try “Desktop 5” → type a name → Enter). It becomes a Project bound to that desktop's UUID. You can name a desktop you're not even on; its <b>apps</b> capture only once you're there.",
+    displays:[
+      {name:"Display 1 · MacBook", rows:[
+        {gi:1,name:"Build",cur:"focus"},
+        {gi:2,name:"Main"},
+      ]},
+      {name:"Display 2 · iPad", rows:[
+        {gi:3,name:"Research",cur:"other"},
+        {gi:4,unnamed:true,editing:false},
+      ]},
+    ],
+    off:[],
+    focusLabel:"◳ Build"
+  },
+  offdisplay: {
+    label:"Project whose desktop vanished (Comms)",
+    desc:"<b>Comms</b>' desktop is gone (reboot/reconnect churned it). It stays visible in <b>Not on any display</b> with <b>Reassign</b> — never silently lost. Switch is disabled for it. Click Reassign to bind it to the desktop you're on.",
+    displays:[
+      {name:"Display 1 · MacBook", rows:[
+        {gi:1,name:"Build",cur:"focus"},
+        {gi:2,name:"Main"},
+      ]},
+      {name:"Display 2 · iPad", rows:[
+        {gi:3,name:"Research",cur:"other"},
+        {gi:4,unnamed:true},
+      ]},
+    ],
+    off:[{name:"Comms"}],
+    focusLabel:"◳ Build"
+  },
+  overnine: {
+    label:"More than 9 desktops (Ctrl+N ceiling)",
+    desc:"macOS only assigns <code>⌃1</code>–<code>⌃9</code>. The 10th+ desktop shows greyed, <b>can't switch</b>. Rare, but a real ceiling we surface honestly instead of failing silently.",
+    displays:[
+      {name:"Display 1 · MacBook", rows:[
+        {gi:1,name:"Build",cur:"focus"},{gi:2,name:"Main"},{gi:3,unnamed:true},
+        {gi:4,name:"Notes"},{gi:5,unnamed:true},
+      ]},
+      {name:"Display 2 · iPad", rows:[
+        {gi:6,name:"Research",cur:"other"},{gi:7,unnamed:true},{gi:8,unnamed:true},
+        {gi:9,name:"Mail"},{gi:10,unnamed:true,overNine:true},
+      ]},
+    ],
+    off:[],
+    focusLabel:"◳ Build"
+  },
+  empty: {
+    label:"Empty-UUID desktop (no stable identity)",
+    desc:"macOS sometimes gives a desktop no stable UUID. It still gets a Ctrl+N number, so switching is <b>best-effort</b>, but <b>naming is disabled</b> (nothing stable to bind a name to). Shown plainly so it's never mistaken for a nameable desktop.",
+    displays:[
+      {name:"Display 1 · MacBook", rows:[
+        {gi:1,name:"Build",cur:"focus"},{gi:2,name:"Main"},
+      ]},
+      {name:"Display 2 · iPad", rows:[
+        {gi:3,name:"Research",cur:"other"},
+        {gi:4,empty:true},
+      ]},
+    ],
+    off:[],
+    focusLabel:"◳ Build"
+  },
+  disconnected: {
+    label:"iPad disconnected",
+    desc:"The iPad's desktops leave the live list; the project that lived there (<b>Research</b>) moves to <b>Not on any display</b>. Usually returns intact on reconnect (UUID persists) — only needs Reassign if the iPad comes back with a new identity.",
+    displays:[
+      {name:"Display 1 · MacBook", rows:[
+        {gi:1,name:"Build",cur:"focus"},
+        {gi:2,name:"Main"},
+        {gi:3,unnamed:true},
+      ]},
+    ],
+    off:[{name:"Research"},{name:"Comms"}],
+    focusLabel:"◳ Build"
+  },
+};
+
+let current = "normal";
+const popover = document.getElementById("popover");
+const note = document.getElementById("note");
+const toast = document.getElementById("toast");
+const mbLabel = document.getElementById("mbLabel");
+
+function showToast(msg){ toast.innerHTML=msg; toast.classList.add("show");
+  clearTimeout(toast._t); toast._t=setTimeout(()=>toast.classList.remove("show"),2200); }
+
+function markerGlyph(cur){ return cur==="focus"?"◉":cur==="other"?"◐":"○"; }
+function markerClass(cur){ return cur==="focus"?"m-focus":cur==="other"?"m-other":"m-none"; }
+
+let labelStyle = "a";
+function renderLabel(s){
+  const currents = s.displays.map(d=>{
+    const r = d.rows.find(x=>x.cur);
+    return r ? {name: r.unnamed?("Desktop "+r.gi):r.name, focused:r.cur==="focus"} : null;
+  }).filter(Boolean);
+  const focused = currents.find(c=>c.focused) || currents[0];
+  if(labelStyle==="a"){
+    mbLabel.innerHTML = focused ? ("◳ "+focused.name) : "▦";
+  } else if(labelStyle==="b"){
+    mbLabel.innerHTML = currents.map(c=>`<span class="chip ${c.focused?'chip-f':''}">${c.name[0]}</span>`).join("")
+                      + `<span style="color:var(--txt3);font-size:11px;margin-left:2px">${focused?focused.name:''}</span>`;
+  } else {
+    const extra = currents.length-1;
+    mbLabel.innerHTML = (focused?("◳ "+focused.name):"▦") + (extra>0?` <span class="plusn">+${extra}</span>`:"");
+  }
+}
+function setLbl(x){ labelStyle=x;
+  document.querySelectorAll('.lblstyle button').forEach(b=>b.classList.toggle('on',b.dataset.ls===x));
+  renderLabel(scenarios[current]); }
+
+function render(){
+  const s = scenarios[current];
+  note.innerHTML = s.desc;
+  renderLabel(s);
+  let html = `<div class="pop-title">Parallel Project Desktops</div>`;
+  s.displays.forEach((d,di)=>{
+    html += `<div class="divider">${d.name}</div>`;
+    d.rows.forEach(r=>{
+      const disabled = r.overNine || r.empty ? "disabled":"";
+      const nm = r.empty ? `Desktop ${r.gi} · no stable ID`
+               : r.unnamed ? `Desktop ${r.gi}` : r.name;
+      const nmcls = r.unnamed||r.empty ? "unnamed" : "named";
+      let right = "";
+      if(r.overNine) right = `<span class="greylabel">can't switch</span>`;
+      else right = `<span class="key">⌃${r.gi}</span>`;
+      let actions = "";
+      if(!r.empty && !r.overNine){
+        if(r.unnamed) actions = `<button class="abtn" onclick="event.stopPropagation();startName(${di},${r.gi})">Name…</button>`;
+        else actions = `<button class="abtn" onclick="event.stopPropagation();showToast('Rename / manage “${r.name}”')">•••</button>`;
+      }
+      if(r.editing){
+        html += `<div class="row"><span class="marker ${markerClass(r.cur)}">${markerGlyph(r.cur)}</span>
+          <span class="num">${r.gi}</span>
+          <div class="nameedit"><input autofocus placeholder="Name this desktop…"
+             onkeydown="if(event.key==='Enter')commitName(${di},${r.gi},this.value)"></div></div>`;
+      } else {
+        const act = r.cur ? "active-row" : "";
+        html += `<div class="row ${disabled} ${act}" onclick="clickRow(${di},${r.gi})">
+          <span class="marker ${markerClass(r.cur)}">${markerGlyph(r.cur)}</span>
+          <span class="num">${r.gi}</span>
+          <span class="icon">${r.unnamed||r.empty?'􀏧':'◳'}</span>
+          <span class="name ${nmcls}">${nm}</span>
+          <span class="actions">${actions}</span>
+          ${right}
+        </div>`;
+      }
+    });
+  });
+  if(s.off && s.off.length){
+    html += `<div class="group-off"><div class="divider">Not on any display</div>`;
+    s.off.forEach(p=>{
+      html += `<div class="row" style="cursor:default">
+        <span class="warnflag">⚠</span><span class="num"></span>
+        <span class="icon">◳</span><span class="name named">${p.name}</span>
+        <button class="reassign" onclick="event.stopPropagation();showToast('Reassigned “${p.name}” to the desktop you're on')">Reassign</button>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+  // footer save (only when focused desktop is unnamed-ish — show generally for demo)
+  html += `<div class="footer"><div class="hint">Tip: the global number is also the ⌃N switch key.</div></div>`;
+  popover.innerHTML = html;
+}
+
+function clickRow(di,gi){
+  const s = scenarios[current];
+  const row = s.displays[di].rows.find(r=>r.gi===gi);
+  const dname = s.displays[di].name.split('·')[1].trim();
+  const label = row.unnamed?("Desktop "+gi):row.name;
+  if(row.overNine){ showToast("⛔ Desktop "+gi+" — can't switch (macOS Ctrl+N stops at 9)"); return; }
+  if(row.empty){ showToast("⌃"+gi+" posted (best-effort) — Desktop "+gi+" has no stable ID to confirm landing"); return; }
+  if(row.cur==="focus"){ showToast("Already on “"+label+"” (the desktop you're focused on)"); return; }
+  if(row.cur==="other"){ showToast("⌃"+gi+" posted → “"+label+"” is already showing on "+dname+" → no visible move (the accepted no-op)"); return; }
+  // a real switch: focus moves to the clicked display; the display you left keeps showing its desktop (◐)
+  s.displays.forEach(d=>d.rows.forEach(r=>{ if(r.cur==="focus") r.cur="other"; }));   // old focus → still showing, unfocused
+  s.displays[di].rows.forEach(r=>{ if(r.cur==="other") r.cur=undefined; });            // this display's prior current is replaced
+  row.cur = "focus";
+  render();
+  showToast("⌃"+gi+" posted → "+dname+" switches to “"+label+"”, focus follows");
+}
+function startName(di,gi){
+  const row = scenarios[current].displays[di].rows.find(r=>r.gi===gi);
+  row.editing = true; render();
+  setTimeout(()=>{const i=popover.querySelector('input');if(i)i.focus();},30);
+}
+function commitName(di,gi,val){
+  const row = scenarios[current].displays[di].rows.find(r=>r.gi===gi);
+  row.editing=false;
+  if(val && val.trim()){ row.unnamed=false; row.name=val.trim(); showToast("Named Desktop "+gi+" → “"+val.trim()+"” (bound to its UUID)"); }
+  render();
+}
+
+// scenario buttons
+const scnList = document.getElementById("scnList");
+Object.entries(scenarios).forEach(([k,v])=>{
+  const b=document.createElement("button");
+  b.className="scn"+(k===current?" active":"");
+  b.innerHTML = v.label;
+  b.onclick=()=>{ current=k; document.querySelectorAll(".scn").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active"); render(); };
+  b.dataset.k=k; scnList.appendChild(b);
+});
+render();
+</script>
+</body>
+</html>
