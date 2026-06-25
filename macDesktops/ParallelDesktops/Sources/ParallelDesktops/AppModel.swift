@@ -21,6 +21,10 @@ final class AppModel: ObservableObject {
     /// True when the focused desktop has no stable id yet (a freshly-synthesized,
     /// uncommitted Space). Drives the "open a window here to name it" stabilize hint.
     @Published var focusedDesktopUntrackable = false
+    /// Which global Ctrl+N indices (1…9) have their "Switch to Desktop N" shortcut
+    /// enabled. A keyable desktop whose index isn't here can't be switched to until
+    /// the user enables that shortcut — drives the actionable "enable shortcut" hint.
+    @Published var enabledSwitchIndices: Set<Int> = []
 
     private lazy var resumeCard = ResumeCardController()
     private lazy var recap = RecapController(onEnter: { [weak self] in self?.enter($0) })
@@ -113,6 +117,7 @@ final class AppModel: ObservableObject {
     private func refreshDesktopList() {
         desktopList = DesktopList.make(spaces: spaces, projects: projects,
                                        displayNames: friendlyDisplayNames())
+        enabledSwitchIndices = Set((1...9).filter { SymbolicHotkeys.switchToDesktopEnabled($0) == true })
     }
 
     /// Reload after any mutation: pull the store, recompute "current", and rebuild the

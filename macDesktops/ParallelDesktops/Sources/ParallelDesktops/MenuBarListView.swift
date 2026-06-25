@@ -215,8 +215,9 @@ struct MenuBarListView: View {
             } else {
                 HStack(spacing: 6) {
                     Button {
-                        if row.keyable { model.enterDesktop(row.uuid) }
-                        else { model.status = "Desktop \(row.globalIndex) is past Ctrl+9 — can’t switch to it." }
+                        if !row.keyable { model.status = "Desktop \(row.globalIndex) is past Ctrl+9 — can’t switch to it." }
+                        else if shortcutOff(row) { model.status = shortcutOffStatus(row) }
+                        else { model.enterDesktop(row.uuid) }
                     } label: {
                         HStack(spacing: 8) {
                             marker(row); numberLabel(row)
@@ -230,6 +231,7 @@ struct MenuBarListView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    shortcutHint(row)
                     Button("Name…") { namingDesktopUUID = row.uuid; desktopNameText = ""; renamingID = nil }
                         .buttonStyle(.borderless).controlSize(.small)
                         .opacity(hovered ? 1 : 0)
@@ -272,6 +274,39 @@ struct MenuBarListView: View {
         section.rows.first(where: { $0.isUnnamed })?.uuid
             ?? section.rows.first(where: { $0.marker != .none })?.uuid
             ?? section.rows.first(where: { !$0.isEmptyNoID })?.uuid
+    }
+
+    /// A keyable desktop whose "Switch to Desktop N" shortcut isn't enabled — clicking
+    /// it would silently no-op, so we surface an actionable hint instead.
+    private func shortcutOff(_ row: DesktopRow) -> Bool {
+        row.keyable && !model.enabledSwitchIndices.contains(row.globalIndex)
+    }
+
+    /// Inline "Enable ⌃N" pill that deep-links to Keyboard → Shortcuts → Mission Control.
+    @ViewBuilder
+    private func shortcutHint(_ row: DesktopRow) -> some View {
+        if shortcutOff(row) {
+            Button {
+                if let u = URL(string: "x-apple.systempreferences:com.apple.preference.keyboard?Shortcuts") {
+                    NSWorkspace.shared.open(u)
+                }
+            } label: {
+                HStack(spacing: 2) {
+                    Image(systemName: "keyboard.badge.exclamationmark").font(.system(size: 9))
+                    Text("Enable ⌃\(row.globalIndex)").font(.system(size: 9.5, weight: .medium))
+                }
+                .foregroundStyle(.orange)
+                .padding(.horizontal, 5).padding(.vertical, 1)
+                .background(Capsule().fill(Color.orange.opacity(0.15)))
+            }
+            .buttonStyle(.plain)
+            .help("'Switch to Desktop \(row.globalIndex)' is off — click to enable it in Keyboard Settings, then this desktop can switch.")
+        }
+    }
+
+    /// Status text when a switch can't fire because its shortcut is off (actionable).
+    private func shortcutOffStatus(_ row: DesktopRow) -> String {
+        "Enable “Switch to Desktop \(row.globalIndex)” in Keyboard Settings to switch here."
     }
 
     /// The project's "what's next" checklist: toggleable items + an always-present
@@ -385,8 +420,9 @@ struct MenuBarListView: View {
 
         HStack(spacing: 6) {
             Button {
-                if row.keyable { model.enter(project) }
-                else { model.status = "“\(project.name)” is past Ctrl+9 — can’t switch to it." }
+                if !row.keyable { model.status = "“\(project.name)” is past Ctrl+9 — can’t switch to it." }
+                else if shortcutOff(row) { model.status = shortcutOffStatus(row) }
+                else { model.enter(project) }
             } label: {
                 HStack(spacing: 8) {
                     marker(row)
@@ -416,6 +452,8 @@ struct MenuBarListView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+
+            shortcutHint(row)
 
             // Count badge: a soft pill with the number; a faint dash when none.
             if links.isEmpty {
