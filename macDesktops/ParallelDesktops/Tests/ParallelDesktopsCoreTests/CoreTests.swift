@@ -103,6 +103,75 @@ final class DisplayMappingTests: XCTestCase {
     }
 }
 
+// MARK: - DesktopList join model (all-desktops switcher U1)
+
+final class DesktopListTests: XCTestCase {
+    private func proj(_ name: String, _ uuid: String) -> Project { Project(name: name, spaceUUID: uuid) }
+
+    func testJoinsNamedAndUnnamedWithContinuousGlobalIndexAndSectionNames() {
+        let s = FakeMultiDisplaySpaces(perDisplay: [["A","B","C0"], ["D","E"]], focused: "A", currents: ["A","D"])
+        let list = DesktopList.make(spaces: s, projects: [proj("Build","A"), proj("Main","B")],
+                                    displayNames: ["MacBook","iPad"])
+        XCTAssertEqual(list.sections.map { $0.name }, ["MacBook","iPad"])
+        let rows = list.sections.flatMap { $0.rows }
+        XCTAssertEqual(rows.map { $0.globalIndex }, [1,2,3,4,5], "global numbering is continuous across displays")
+        XCTAssertEqual(rows[0].project?.name, "Build")
+        XCTAssertEqual(rows[1].project?.name, "Main")
+        XCTAssertTrue(rows[2].isUnnamed)   // C0 has no project
+        XCTAssertTrue(rows[3].isUnnamed)   // D
+        XCTAssertTrue(rows[4].isUnnamed)   // E
+    }
+
+    func testMarkersFocusedVsOtherVsNoneAndDefaultDisplayNames() {
+        let s = FakeMultiDisplaySpaces(perDisplay: [["A","B"], ["D","E"]], focused: "A", currents: ["A","D"])
+        let rows = DesktopList.make(spaces: s, projects: [], displayNames: []).sections.flatMap { $0.rows }
+        XCTAssertEqual(rows[0].marker, .focused)  // A is the focused display's current
+        XCTAssertEqual(rows[1].marker, .none)
+        XCTAssertEqual(rows[2].marker, .other)    // D current on the iPad, not focused
+        XCTAssertEqual(rows[3].marker, .none)
+        let names = DesktopList.make(spaces: s, projects: [], displayNames: []).sections.map { $0.name }
+        XCTAssertEqual(names, ["Display 1","Display 2"], "missing friendly names fall back to Display N")
+    }
+
+    func testEmptyUUIDRowIsEmptyNoIDButCountedAndNeverCurrent() {
+        let s = FakeMultiDisplaySpaces(perDisplay: [["A","","C"]], focused: "A", currents: ["A"])
+        let rows = DesktopList.make(spaces: s, projects: [], displayNames: []).sections[0].rows
+        XCTAssertTrue(rows[1].isEmptyNoID)
+        XCTAssertEqual(rows[1].globalIndex, 2, "empty desktop is still counted in the global index")
+        XCTAssertEqual(rows[1].marker, .none, "untrackable is never current")
+        XCTAssertEqual(rows[2].globalIndex, 3, "numbering continues past the empty")
+    }
+
+    func testKeyableFalseBeyondNine() {
+        let s = FakeMultiDisplaySpaces(perDisplay: [(1...11).map { "U\($0)" }], focused: "U1", currents: ["U1"])
+        let rows = DesktopList.make(spaces: s, projects: [], displayNames: []).sections[0].rows
+        XCTAssertTrue(rows[8].keyable)    // #9
+        XCTAssertFalse(rows[9].keyable)   // #10
+        XCTAssertFalse(rows[10].keyable)  // #11
+    }
+
+    func testProjectWithVanishedDesktopIsOffDisplay() {
+        let s = FakeMultiDisplaySpaces(perDisplay: [["A","B"], ["D"]], focused: "A", currents: ["A","D"])
+        let list = DesktopList.make(spaces: s, projects: [proj("Build","A"), proj("Comms","GONE")], displayNames: [])
+        XCTAssertEqual(list.offDisplayProjects.map { $0.name }, ["Comms"])
+        XCTAssertFalse(list.offDisplayProjects.contains { $0.name == "Build" })
+        XCTAssertEqual(list.sections[0].rows[0].project?.name, "Build")
+    }
+
+    func testProjectBoundToUntrackableIsOffDisplayNeverMatchedToEmptyRow() {
+        let s = FakeMultiDisplaySpaces(perDisplay: [["A",""]], focused: "A", currents: ["A"])
+        let list = DesktopList.make(spaces: s, projects: [proj("Ghost","")], displayNames: [])
+        XCTAssertEqual(list.offDisplayProjects.map { $0.name }, ["Ghost"], "never binds a project to the empty-uuid row")
+        XCTAssertTrue(list.sections[0].rows[1].isEmptyNoID)
+    }
+
+    func testRowOrderMatchesFlattenedDisplays() {
+        let s = FakeMultiDisplaySpaces(perDisplay: [["A","B"], ["C","D"]], focused: "A", currents: ["A","C"])
+        let list = DesktopList.make(spaces: s, projects: [], displayNames: [])
+        XCTAssertEqual(list.sections.flatMap { $0.rows }.map { $0.uuid }, s.globalDesktopUUIDs())
+    }
+}
+
 // MARK: - resolveIndex (KTD-2)
 
 final class ResolveIndexTests: XCTestCase {
