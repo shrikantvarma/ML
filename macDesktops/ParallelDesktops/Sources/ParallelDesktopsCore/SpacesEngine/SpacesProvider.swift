@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 
 /// Identity guard for Space UUIDs. macOS returns `uuid: ""` for some real
 /// desktops, and the CGS parser maps a missing key to `"?"`; binding, matching,
@@ -35,6 +36,15 @@ public protocol SpacesProvider {
     /// Per-display hardware identifiers, in the same order as `displaysWithDesktops()`.
     /// Used to map displays to friendly `NSScreen` names. Empty when unknown.
     func displayIdentifiers() -> [String]
+    /// Make the display that HOSTS `uuid`'s desktop show that desktop — a direct
+    /// WindowServer space-set (no Ctrl+N, no focus move). Returns false if unsupported
+    /// or unresolvable; the caller must re-read `isSpaceCurrent` to confirm landing.
+    /// This is the cross-display lever Ctrl+N can't pull (it only switches the focused
+    /// display). Single-display default: false (fakes/single-monitor don't need it).
+    func setDisplayCurrentSpace(toSpaceUUID uuid: String) -> Bool
+    /// Top-left-origin (Quartz) bounds of the display hosting `uuid`'s desktop, for
+    /// placing a window onto that display. nil when unresolvable.
+    func displayBounds(forSpaceUUID uuid: String) -> CGRect?
 }
 
 public extension SpacesProvider {
@@ -56,6 +66,8 @@ public extension SpacesProvider {
         Set([currentSpaceUUID()].compactMap { $0 }.filter { SpaceIdentity.isTrackable($0) })
     }
     func displayIdentifiers() -> [String] { [] }   // single-display default ⇒ fall back to "Display N"
+    func setDisplayCurrentSpace(toSpaceUUID uuid: String) -> Bool { false }
+    func displayBounds(forSpaceUUID uuid: String) -> CGRect? { nil }
 
     /// 1-based ordinal of the display hosting `uuid`'s desktop (Display 1, 2, …).
     /// nil for an untrackable or absent uuid.
@@ -107,5 +119,14 @@ public struct CGSSpacesProvider: SpacesProvider {
     }
     public func displayIdentifiers() -> [String] {
         CGS.allDisplays().map { $0.displayIdentifier }
+    }
+    public func setDisplayCurrentSpace(toSpaceUUID uuid: String) -> Bool {
+        guard SpaceIdentity.isTrackable(uuid),
+              let (displayID, spaceID) = CGS.displayAndSpaceID(forUUID: uuid) else { return false }
+        return CGS.directSetCurrentSpace(displayID: displayID, spaceID: spaceID)
+    }
+    public func displayBounds(forSpaceUUID uuid: String) -> CGRect? {
+        guard SpaceIdentity.isTrackable(uuid) else { return nil }
+        return CGS.cgBounds(forSpaceUUID: uuid)
     }
 }

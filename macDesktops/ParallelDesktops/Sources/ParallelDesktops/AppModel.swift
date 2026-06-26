@@ -35,6 +35,8 @@ final class AppModel: ObservableObject {
     private let spaces: SpacesProvider = CGSSpacesProvider()
     private let engine: SwitchEngine
     private let urlOpener: URLOpening = SystemURLOpener()
+    private let windowPlacer: WindowPlacing = AXWindowPlacer()
+    private static let chromeBundleID = "com.google.Chrome"
 
     /// Post-switch settle before opening Chrome: a browser window is born on the
     /// Space active at creation, so we must be genuinely settled first (KTD5). 1.5s
@@ -513,8 +515,12 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// Switch to the project's Space if needed, verify it landed, settle, then open
-    /// the links via the profile recipe or the default browser (KTD2/KTD5/KTD7).
+    /// Bring a project's desktop up and open its links on it. Two regimes:
+    ///  • Same display (or single monitor): the validated Ctrl+N switch → settle → open.
+    ///  • Cross display (project lives on a screen you're NOT focused on): Ctrl+N can't
+    ///    target another display, and a new Chrome window is born on Chrome's frontmost
+    ///    window's display — so we (Atom 1) direct-set the project's display to its Space
+    ///    with no focus move, then (Atom 2) open and move the new window onto that display.
     /// Reused by `bringUpApps` after its app loop (R5).
     private func switchSettleOpen(_ project: Project, urls rawURLs: [String]) async -> LinkOpenOutcome {
         let plan = LinkOpenPlan.make(project: project,
@@ -523,23 +529,57 @@ final class AppModel: ObservableObject {
                                      chromeFallbackFolder: chromeLastUsedFolder)
         guard !plan.urls.isEmpty || !plan.nonWebURLs.isEmpty else { return .noLinks }
 
+        let crossDisplay = DisplayPlacement.isCrossDisplay(
+            projectDisplayOrdinal: spaces.displayOrdinal(forSpaceUUID: project.spaceUUID),
+            focusedDisplayOrdinal: spaces.focusedCurrentSpaceUUID().flatMap { spaces.displayOrdinal(forSpaceUUID: $0) })
+
+        if crossDisplay {
+            // Atom 1: make the project's OWN display show its desktop (no Ctrl+N, no focus
+            // move). Skip if it's already showing there (common: you left it up).
+            if !spaces.isSpaceCurrent(uuid: project.spaceUUID) {
+                guard spaces.setDisplayCurrentSpace(toSpaceUUID: project.spaceUUID) else {
+                    return .switchFailed(.verificationFailed)
+                }
+                try? await Task.sleep(nanoseconds: Self.linkSettleNanos)
+                guard spaces.isSpaceCurrent(uuid: project.spaceUUID) else {
+                    return .switchFailed(.verificationFailed)
+                }
+            }
+            // Atom 2: open, then move the new window onto the project's display.
+            return await performOpen(plan, placeOn: spaces.displayBounds(forSpaceUUID: project.spaceUUID))
+        }
+
+        // Same display / single monitor: the original validated recipe.
         if plan.needsSwitch {
             let result = await engine.switch(toSpaceUUID: project.spaceUUID)
             guard case .switched = result else { return .switchFailed(result) }
             try? await Task.sleep(nanoseconds: Self.linkSettleNanos)
         }
+        return await performOpen(plan, placeOn: nil)
+    }
 
+    /// Open `plan`'s links. When `placeOn` is non-nil and the profile (Chrome) path is
+    /// used, the freshly-opened window is moved onto those display bounds (Atom 2).
+    private func performOpen(_ plan: LinkOpenPlan, placeOn bounds: CGRect?) async -> LinkOpenOutcome {
         var opened = 0
         var chromeFailed = false
 
-        // Web links: Chrome profile recipe (placed on this desktop) or the default browser.
+        // Web links: Chrome profile recipe (optionally placed on the target display) or
+        // the default browser.
         if !plan.urls.isEmpty {
             if let folder = plan.profileFolder {
                 let urls = plan.urls
                 // Run the blocking Process (waitUntilExit) off the main actor so the
-                // menu-bar UI never freezes if `open`/Chrome is slow.
-                let ok = await Task.detached { [urlOpener] in
-                    urlOpener.openChrome(profileFolder: folder, urls: urls)
+                // menu-bar UI never freezes if `open`/Chrome is slow; capture the prior
+                // window count before opening so the new window can be singled out.
+                let ok = await Task.detached { [urlOpener, windowPlacer] in
+                    let prior = bounds != nil ? windowPlacer.windowCount(bundleID: Self.chromeBundleID) : 0
+                    let opened = urlOpener.openChrome(profileFolder: folder, urls: urls)
+                    if opened, let bounds {
+                        _ = windowPlacer.placeNewFrontWindow(bundleID: Self.chromeBundleID,
+                                                             priorCount: prior, onto: bounds, timeoutMs: 2500)
+                    }
+                    return opened
                 }.value
                 if ok { opened += plan.urls.count } else { chromeFailed = true }
             } else {
@@ -551,9 +591,9 @@ final class AppModel: ObservableObject {
         for url in plan.nonWebURLs where urlOpener.openDefault(url: url) { opened += 1 }
 
         if opened > 0 {
-            // The bounce note applies only to web links opened via the default browser
-            // on a cold switch — not to Obsidian/file opens.
-            let bounced = plan.needsSwitch && plan.profileFolder == nil && !plan.urls.isEmpty
+            // The bounce note applies only to web links opened via the default browser on
+            // a cold switch with no placement — not to the placed Chrome path or file opens.
+            let bounced = bounds == nil && plan.needsSwitch && plan.profileFolder == nil && !plan.urls.isEmpty
             return .opened(opened, bounced: bounced)
         }
         return chromeFailed ? .chromeFailed : .defaultFailed

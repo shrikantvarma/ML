@@ -483,6 +483,27 @@ final class BrowserLauncherTests: XCTestCase {
 
 // MARK: - LinkOpenPlan (U4)
 
+final class DisplayPlacementTests: XCTestCase {
+    func testSameDisplayIsNotCrossDisplay() {
+        XCTAssertFalse(DisplayPlacement.isCrossDisplay(projectDisplayOrdinal: 1, focusedDisplayOrdinal: 1))
+        XCTAssertFalse(DisplayPlacement.isCrossDisplay(projectDisplayOrdinal: 2, focusedDisplayOrdinal: 2))
+    }
+
+    func testDifferentDisplaysIsCrossDisplay() {
+        // Project lives on Display 2 (iPad), focus is on Display 1 (laptop) → the bug case.
+        XCTAssertTrue(DisplayPlacement.isCrossDisplay(projectDisplayOrdinal: 2, focusedDisplayOrdinal: 1))
+        XCTAssertTrue(DisplayPlacement.isCrossDisplay(projectDisplayOrdinal: 1, focusedDisplayOrdinal: 2))
+    }
+
+    func testUnresolvableOrdinalFallsBackToSameDisplay() {
+        // A nil ordinal (project drifted / focus untrackable) must NOT trigger the
+        // cross-display path — let the conservative same-display path surface drift.
+        XCTAssertFalse(DisplayPlacement.isCrossDisplay(projectDisplayOrdinal: nil, focusedDisplayOrdinal: 1))
+        XCTAssertFalse(DisplayPlacement.isCrossDisplay(projectDisplayOrdinal: 2, focusedDisplayOrdinal: nil))
+        XCTAssertFalse(DisplayPlacement.isCrossDisplay(projectDisplayOrdinal: nil, focusedDisplayOrdinal: nil))
+    }
+}
+
 final class LinkOpenPlanTests: XCTestCase {
     private func project(space: String, profile: String?, links: [String]) -> Project {
         Project(name: "P", spaceUUID: space,

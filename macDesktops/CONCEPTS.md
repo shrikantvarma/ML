@@ -23,6 +23,14 @@ A Space can lack a Space UUID: macOS reports an empty value for some desktops (s
 ### Blueprint
 The saved contents of a Project — the apps to boot, pinned links, and checklist — that define what the Project sets up when entered.
 
+## Displays
+
+### Display
+A physical screen attached to the Mac. With "Displays have separate Spaces" enabled, each Display owns its own ordered set of Spaces and has its own current Space — so a Space, and the Project bound to it, lives on exactly one Display at a time. A read of "the current Space" is meaningless without saying *which* Display; the app must target a specific Display when switching to or opening onto a Project's desktop.
+
+### Focused display
+The Display currently receiving keyboard input. Its current Space is what the system's "switch to desktop" shortcut acts on and what an unqualified "current Space" read returns — so a Project on a *non-focused* Display can't be reached by that shortcut, and a new window opens on the focused Display's screen rather than the Project's, unless the app places it explicitly.
+
 ## Status & processes
 
 ### Drift

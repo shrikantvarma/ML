@@ -31,6 +31,19 @@ blocking daily use. Plan: `docs/plans/2026-06-21-001-feat-parallel-project-deskt
 - **Reliability gates a/b/c/e/f** — measure via the spike's run-N (see `Spike/SPIKE.md`);
   only gate (d), UUID-survives-reboot, has been verified.
 
+## Known macOS quirks (not app bugs — parked)
+
+- **Mission-Control Space-drag strands windows off-screen (P3, macOS bug).** Dragging a
+  desktop between displays in Mission Control with "Displays have separate Spaces" ON
+  moves the Space but can fail to re-clamp its windows — observed a window flung to
+  x≈−1062 (off-screen left), exactly a full virtual-desktop-width shift (`placedX − totalSpan`).
+  The app's code never runs during a native MC drag, so this is pure macOS behavior, not
+  our placement logic (verified 2026-06-26 alongside the cross-display open fix). Optional
+  future defense: on `didChangeScreenParameters`/`activeSpaceDidChange`, scan the project's
+  windows and AX-clamp any that landed off-screen back onto a visible display (we now have
+  the AX primitives via `WindowPlacer`). Workaround today: use the app's relocate action
+  instead of dragging, or re-position the window manually.
+
 ## Deferred (plan Scope Boundaries / macOS limits)
 
 - Window-layout restore & moving a window across Spaces (needs SIP-off on macOS 26 —

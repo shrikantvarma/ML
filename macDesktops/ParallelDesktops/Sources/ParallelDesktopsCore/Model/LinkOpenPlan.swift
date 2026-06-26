@@ -4,6 +4,20 @@ import Foundation
 /// needed, which Chrome profile folder to target (nil → system default browser),
 /// and the http/https-filtered URLs in order. Split out so the branching is
 /// unit-tested without `AppModel` (which the test target can't import).
+/// Decides whether opening a project's links must cross to another physical display.
+/// Pure so the branch in `AppModel.switchSettleOpen` is testable: cross-display open
+/// uses the direct space-set + window-move (Atoms 1+2); same-display uses the original
+/// Ctrl+N switch + open recipe. Both ordinals come from `SpacesProvider.displayOrdinal`.
+public enum DisplayPlacement {
+    /// True only when both displays resolve AND they differ. A nil ordinal (the project's
+    /// desktop is gone, or focus is untrackable) is NOT treated as cross-display — fall
+    /// back to the conservative same-display path so a drift surfaces normally.
+    public static func isCrossDisplay(projectDisplayOrdinal: Int?, focusedDisplayOrdinal: Int?) -> Bool {
+        guard let p = projectDisplayOrdinal, let f = focusedDisplayOrdinal else { return false }
+        return p != f
+    }
+}
+
 public struct LinkOpenPlan: Equatable {
     public var needsSwitch: Bool
     public var profileFolder: String?

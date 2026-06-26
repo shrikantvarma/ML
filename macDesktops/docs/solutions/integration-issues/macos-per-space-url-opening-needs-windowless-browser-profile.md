@@ -2,7 +2,7 @@
 title: "Per-Space URL opening: a verified Space switch + per-profile new window lands the page correctly"
 module: "macOS Spaces / browser URL opening"
 date: 2026-06-21
-last_updated: 2026-06-22
+last_updated: 2026-06-26
 problem_type: integration_issue
 component: tooling
 severity: high
@@ -33,6 +33,14 @@ conclusion has been **loosened**. An existing, actively-used profile lands the p
 correctly when opened via the **verified-switch + `--new-window --profile-directory`
 recipe**, even when that profile already has windows on other desktops. Title and
 recommendations below reflect the update.
+
+**Multi-display addendum (2026-06-26):** this recipe was validated **single-monitor**
+(across Spaces on one display) and is **necessary but not sufficient** on multi-display.
+A new Chrome window is born on the display where Chrome's *frontmost window* already is,
+so opening links for a project that lives on *another* display lands them on the wrong
+screen — verified-switch and profile choice don't change that. The multi-display fix
+adds two atoms (direct per-display space-set + an Accessibility window-move). See
+[macos-multidisplay-new-window-follows-frontmost-not-focus.md](macos-multidisplay-new-window-follows-frontmost-not-focus.md).
 
 ## Problem
 
