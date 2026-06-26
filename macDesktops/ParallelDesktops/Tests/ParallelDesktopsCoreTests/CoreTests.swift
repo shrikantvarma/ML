@@ -495,6 +495,18 @@ final class DisplayPlacementTests: XCTestCase {
         XCTAssertTrue(DisplayPlacement.isCrossDisplay(projectDisplayOrdinal: 1, focusedDisplayOrdinal: 2))
     }
 
+    func testProjectHealedTrueWhenSpacePresent() {
+        // The project's bound Space reappeared on some display → a rescue action must abort.
+        XCTAssertTrue(DisplayPlacement.projectHealed(projectSpaceUUID: "S2",
+                                                     presentSpaceUUIDs: ["S1", "S2", "S3"]))
+    }
+
+    func testProjectHealedFalseWhenSpaceAbsent() {
+        // The project's Space is gone from every display → genuinely off-display, rescue proceeds.
+        XCTAssertFalse(DisplayPlacement.projectHealed(projectSpaceUUID: "S2", presentSpaceUUIDs: ["S1", "S3"]))
+        XCTAssertFalse(DisplayPlacement.projectHealed(projectSpaceUUID: "S2", presentSpaceUUIDs: []))
+    }
+
     func testUnresolvableOrdinalFallsBackToSameDisplay() {
         // A nil ordinal (project drifted / focus untrackable) must NOT trigger the
         // cross-display path — let the conservative same-display path surface drift.

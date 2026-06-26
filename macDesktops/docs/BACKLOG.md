@@ -31,6 +31,32 @@ blocking daily use. Plan: `docs/plans/2026-06-21-001-feat-parallel-project-deskt
 - **Reliability gates a/b/c/e/f** — measure via the spike's run-N (see `Spike/SPIKE.md`);
   only gate (d), UUID-survives-reboot, has been verified.
 
+## Multi-display: apps/capture layer is display-blind (P1 — planned milestone)
+
+The links/open path is now multi-display-correct (cross-display open lands on the
+project's display; see `docs/solutions/integration-issues/macos-multidisplay-new-window-follows-frontmost-not-focus.md`).
+The **apps and capture** path is not, because it assumes single-monitor:
+
+- `AppModel.bringUpApps` switches via `engine.switch` (Ctrl+N → focused display only)
+  and reads `spaces.currentSpaceUUID()` (primary display only), so on a project that
+  lives on a non-focused display it inspects/launches apps on the **wrong** desktop.
+  → "Open on display…" (`relocate`) places links on the target monitor but apps on the
+  focused one. Inconsistent.
+- `AppInspector.appsOnCurrentDesktop` uses `CGWindowListCopyWindowInfo(.optionOnScreenOnly)`,
+  which spans **all** displays' visible spaces — so "apps on this desktop" (used by
+  bring-up *and* by capture/`saveCurrentDesktopAsProject`) is really "apps across every
+  monitor." Capture over-captures; bring-up mis-skips.
+
+Fixing cross-display app *placement* is genuinely hard (macOS launches app windows on
+the focused display). Candidate approach: reuse the accepted focus-follow — open the
+links first (the AX move pulls focus to the target display, verified 2026-06-26), then
+launch apps on the now-focused target display; and filter `AppInspector` per-window by
+space via `CGSCopySpacesForWindows`. This is milestone-sized, not a quick fix.
+
+Already fixed (2026-06-26): the **stale-menu rescue TOCTOU** — `openHere` / `recalibrate`
+/ `reassign` now re-check live presence (`DisplayPlacement.projectHealed`) and abort if
+the project auto-healed under an open menu, instead of rebinding + dumping its windows.
+
 ## Known macOS quirks (not app bugs — parked)
 
 - **Mission-Control Space-drag strands windows off-screen (P3, macOS bug).** Dragging a

@@ -379,9 +379,27 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// A "rescue" action (open-here / recalibrate / reassign-to-free) targets a project
+    /// whose desktop the menu showed as gone. State can change under an open menu — a
+    /// display reconnects and the project auto-heals — so re-check live presence first.
+    /// If the project's bound Space is present again, abort the destructive rebind,
+    /// refresh the list, and tell the user, rather than dumping it onto this desktop.
+    private func rescueAborted(_ project: Project) -> Bool {
+        recomputeDrift()   // pull live presence into the model + desktopList
+        guard let p = projects.first(where: { $0.id == project.id }) else { return true }
+        if DisplayPlacement.projectHealed(projectSpaceUUID: p.spaceUUID,
+                                          presentSpaceUUIDs: spaces.allTrackableUserSpaceUUIDs()) {
+            let where_ = spaces.displayOrdinal(forSpaceUUID: p.spaceUUID).map { " on Display \($0)" } ?? ""
+            status = "“\(p.name)” is back\(where_) — reopen the menu to use it."
+            return true
+        }
+        return false
+    }
+
     /// Rebind a drifted project to the desktop you're currently on (U5 recalibration).
     func recalibrate(_ project: Project) {
         // Rebind to the desktop on the FOCUSED display; refuse an untrackable one.
+        // (The healed-project guard lives in reassign, which this calls.)
         guard let uuid = spaces.focusedCurrentSpaceUUID(), SpaceIdentity.isTrackable(uuid) else {
             status = "This desktop can’t host a project yet — it has no stable identity."; return
         }
@@ -392,6 +410,7 @@ final class AppModel: ObservableObject {
     /// recover a "Not on any display" project onto a chosen free desktop without
     /// having to be focused on it. Refuses an untrackable or already-hosted desktop.
     func reassign(_ project: Project, toDesktopUUID uuid: String) {
+        if rescueAborted(project) { return }
         guard SpaceIdentity.isTrackable(uuid) else {
             status = "That desktop has no stable identity yet — can’t reassign there."; return
         }
@@ -428,6 +447,7 @@ final class AppModel: ObservableObject {
     /// "Open on this screen": place a project (typically one whose desktop vanished)
     /// onto the desktop currently focused, on whatever display you're on now.
     func openHere(_ project: Project) {
+        if rescueAborted(project) { return }
         guard let uuid = spaces.focusedCurrentSpaceUUID(), SpaceIdentity.isTrackable(uuid) else {
             status = "This desktop can’t host a project yet — it has no stable identity."; return
         }

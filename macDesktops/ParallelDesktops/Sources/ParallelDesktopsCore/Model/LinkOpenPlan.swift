@@ -16,6 +16,16 @@ public enum DisplayPlacement {
         guard let p = projectDisplayOrdinal, let f = focusedDisplayOrdinal else { return false }
         return p != f
     }
+
+    /// True when a "rescue" action (open-here / recalibrate / reassign) should ABORT
+    /// because the project's desktop is actually present again — its bound Space
+    /// reappeared on some display. State can change under an open menu (a display
+    /// reconnects and the project auto-heals), so the menu's "off-display" framing
+    /// goes stale; acting on it would rebind the healed project onto the current
+    /// desktop and dump its windows there. Re-check live presence before rebinding.
+    public static func projectHealed(projectSpaceUUID: String, presentSpaceUUIDs: [String]) -> Bool {
+        presentSpaceUUIDs.contains(projectSpaceUUID)
+    }
 }
 
 public struct LinkOpenPlan: Equatable {
