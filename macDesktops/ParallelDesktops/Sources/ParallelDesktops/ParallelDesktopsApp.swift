@@ -18,29 +18,20 @@ struct ParallelDesktopsApp: App {
 }
 
 /// Status-bar label: a compact, glanceable indicator of the current project.
-/// Plain `Text` renders reliably in the menu bar (a `Label` often shows icon-only);
-/// the name is truncated so it never hogs menu-bar space.
+/// Plain `Text` renders reliably in the menu bar (a `Label` often shows icon-only).
+/// The label is always the glyph + first letter (`Project.menuBarCompactLabel`) so it
+/// stays tiny and never gets pushed off / behind the notch on a crowded menu bar —
+/// the full project name shows inside the popover. (Detecting whether the OS has
+/// clipped a status item isn't reliably possible, so we never grow large enough to.)
 struct MenuBarLabel: View {
     @ObservedObject var model: AppModel
 
-    private static let maxNameChars = 14
-
     var body: some View {
         if let project = model.currentProject {
-            Text(title(for: project))
+            Text(project.menuBarCompactLabel)
         } else {
             Image(systemName: "square.grid.3x3.fill")  // not on a saved project desktop
         }
-    }
-
-    private func title(for project: Project) -> String {
-        let name = project.name
-        let shown = name.count > Self.maxNameChars
-            ? name.prefix(Self.maxNameChars - 1) + "…"
-            : Substring(name)
-        // Emoji is the icon when set; otherwise a compact glyph stands in for it.
-        let glyph = project.emoji ?? "◳"
-        return "\(glyph) \(shown)"
     }
 }
 

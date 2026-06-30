@@ -116,4 +116,17 @@ public struct Project: Codable, Equatable, Identifiable {
         self.chromeProfileFolder = chromeProfileFolder
         self.iconName = iconName
     }
+
+    /// Compact, never-clipping menu-bar label: the project's glyph followed by the
+    /// first letter of its name, uppercased (e.g. "📊C", "◳C"). Kept tiny on purpose
+    /// so it survives a crowded or notched menu bar where the full name would be
+    /// pushed off-screen — detecting that clipping isn't reliably possible, so we
+    /// simply never grow large enough to clip. The full name still shows in the
+    /// popover. Falls back to the glyph alone when the name has no leading letter.
+    public var menuBarCompactLabel: String {
+        let glyph = emoji ?? "◳"
+        let firstLetter = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            .first.map { String($0).uppercased() } ?? ""
+        return firstLetter.isEmpty ? glyph : "\(glyph)\(firstLetter)"
+    }
 }

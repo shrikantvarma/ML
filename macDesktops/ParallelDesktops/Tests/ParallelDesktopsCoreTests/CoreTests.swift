@@ -483,6 +483,40 @@ final class BrowserLauncherTests: XCTestCase {
 
 // MARK: - LinkOpenPlan (U4)
 
+final class MenuBarCompactLabelTests: XCTestCase {
+    private func project(_ name: String, emoji: String? = nil) -> Project {
+        Project(name: name, emoji: emoji, spaceUUID: "S1")
+    }
+
+    func testGlyphPlusFirstLetterUppercased() {
+        XCTAssertEqual(project("Comms", emoji: "📊").menuBarCompactLabel, "📊C")
+        XCTAssertEqual(project("strategy", emoji: "🧭").menuBarCompactLabel, "🧭S")
+    }
+
+    func testFallbackGlyphWhenNoEmoji() {
+        XCTAssertEqual(project("County Tax Appeal").menuBarCompactLabel, "◳C")
+    }
+
+    func testLongNameStaysCompact() {
+        // The whole point: a long name never grows the label.
+        XCTAssertEqual(project("Quarterly Revenue Planning Workspace", emoji: "💰").menuBarCompactLabel, "💰Q")
+    }
+
+    func testLeadingWhitespaceTrimmed() {
+        XCTAssertEqual(project("   inbox", emoji: "📥").menuBarCompactLabel, "📥I")
+    }
+
+    func testEmptyNameFallsBackToGlyphAlone() {
+        XCTAssertEqual(project("", emoji: "📊").menuBarCompactLabel, "📊")
+        XCTAssertEqual(project("   ", emoji: "📊").menuBarCompactLabel, "📊")
+        XCTAssertEqual(project("").menuBarCompactLabel, "◳")
+    }
+
+    func testNonLetterFirstCharacterPreserved() {
+        XCTAssertEqual(project("3D Models", emoji: "🎨").menuBarCompactLabel, "🎨3")
+    }
+}
+
 final class DisplayPlacementTests: XCTestCase {
     func testSameDisplayIsNotCrossDisplay() {
         XCTAssertFalse(DisplayPlacement.isCrossDisplay(projectDisplayOrdinal: 1, focusedDisplayOrdinal: 1))
