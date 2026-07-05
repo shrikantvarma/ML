@@ -70,6 +70,32 @@ the project auto-healed under an open menu, instead of rebinding + dumping its w
   the AX primitives via `WindowPlacer`). Workaround today: use the app's relocate action
   instead of dragging, or re-position the window manually.
 
+## Candidate feature: "Rescue off-screen windows" (P3 — captured 2026-06-30, not planned)
+
+Recovery action for the recurring "I set up a window on the external display and now I
+can't find it" problem (hit live with a stranded iTerm2 window off the top of the external
+monitor at y≈−133). Window coordinates become invalid when the display arrangement changes
+(iPad connect/disconnect, clamshell, monitor swaps) and macOS doesn't reliably re-clamp —
+especially for windows on non-active Spaces. This is a *recovery* feature (re-clamp
+off-screen windows onto a visible display), NOT layout *prevention*.
+
+Design forks to settle when picked up:
+- **Trigger** — manual menu command ("Rescue off-screen windows") vs automatic on
+  `didChangeScreenParameters`/`activeSpaceDidChange` vs both. Manual is safest (no surprise
+  moves); auto is more seamless.
+- **Window scope** — all apps' off-screen windows (covers the iTerm2-type case, most useful)
+  vs only the user's project apps (narrower, more on-brand).
+- **Hard limit (verified 2026-06-30)** — AX only reaches windows on the currently-*visible*
+  Space; a hidden-Space strand (the County Tax Appeal iTerm2 window) can't be grabbed via AX
+  or even the app's own scripting. So a built-in rescue reliably covers current-Space windows
+  per display; hidden-Space strands need their Space made current first → out of scope.
+
+**Buy-vs-build:** the prevention-grade answer is a mature tool — **Stay** (Cordless Dog) or
+Rectangle Pro's "restore positions" — which remembers per-arrangement layouts and restores
+them on reconnect, for all apps, zero maintenance. Recommended for daily display-swappers.
+Build the in-app rescue only if tight Space-aware integration is wanted, accepting the
+current-Space limit. Coexists fine with PD (different layers); see session 2026-06-30.
+
 ## Deferred (plan Scope Boundaries / macOS limits)
 
 - Window-layout restore & moving a window across Spaces (needs SIP-off on macOS 26 —
