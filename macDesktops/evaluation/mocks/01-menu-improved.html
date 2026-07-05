@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mock 01 — Menu popover: before / after</title>
+<style>
+  :root{
+    --bg:#e8e6e1; --panel:#f6f5f3; --border:rgba(0,0,0,.10);
+    --text:#1d1d1f; --sec:rgba(29,29,31,.55); --ter:rgba(29,29,31,.34);
+    --accent:#0a66ff; --accent-soft:rgba(10,102,255,.13);
+    --hover:rgba(0,0,0,.05); --warn:#e6a700; --warn-soft:rgba(230,167,0,.14);
+    --ok:#28a745; --danger:#d64545;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,'SF Pro Text','Helvetica Neue',sans-serif;background:var(--bg);color:var(--text);padding:36px;display:flex;gap:44px;justify-content:center;align-items:flex-start;-webkit-font-smoothing:antialiased}
+  .col{display:flex;flex-direction:column;gap:10px}
+  .col>h2{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--sec);text-align:center}
+  .col>h2 .tag{display:inline-block;font-size:10px;padding:2px 8px;border-radius:99px;margin-left:6px;vertical-align:1px}
+  .before .tag{background:rgba(0,0,0,.08);color:var(--sec)}
+  .after .tag{background:var(--accent);color:#fff}
+  .popover{width:330px;background:var(--panel);border:1px solid var(--border);border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.22),0 2px 8px rgba(0,0,0,.08);padding:12px;font-size:13px}
+  .title{font-size:13px;font-weight:700;margin-bottom:10px}
+  .row{display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:7px}
+  .row.current{background:var(--accent-soft)}
+  .row.hovered{background:var(--hover)}
+  .dot{width:12px;text-align:center;font-size:9px;color:var(--ter)}
+  .dot.cur{color:var(--accent);font-size:11px}
+  .glyph{width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600}
+  .name{flex:1}
+  .name b{font-weight:600}
+  .pill{font-size:10.5px;color:var(--sec);background:rgba(0,0,0,.08);border-radius:99px;padding:1px 7px}
+  .pill.none{background:none;color:var(--ter)}
+  .chev{color:var(--sec);font-size:9px;width:14px;text-align:center}
+  .more{color:var(--sec);font-weight:700;letter-spacing:.05em}
+  .tri{color:var(--warn);font-size:12px}
+  .nokey{width:7px;height:7px;border-radius:99px;background:var(--ter);position:relative}
+  .callout{position:relative;border:1.5px dashed var(--accent);border-radius:9px;padding:2px;margin:2px 0}
+  .callout .lbl{position:absolute;right:-8px;top:-9px;transform:translateX(100%);background:var(--accent);color:#fff;font-size:10px;font-weight:600;padding:2px 8px;border-radius:6px;white-space:nowrap}
+  .recal{display:flex;gap:8px;padding:7px 7px 7px 40px;align-items:center}
+  .btn{font-size:11.5px;padding:3.5px 11px;border-radius:6px;border:1px solid var(--border);background:#fff;cursor:default}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+  .divider{height:1px;background:var(--border);margin:9px 0}
+  .save input{width:100%;border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:13px;background:#fff;color:var(--ter)}
+  .cap{font-size:10.5px;color:var(--sec);margin-top:5px;line-height:1.45}
+  .cap .apps{color:var(--text);font-weight:500}
+  .suggest{margin-top:6px;font-size:11px;background:var(--warn-soft);border-radius:6px;padding:5px 8px;display:flex;gap:6px;align-items:center}
+  .suggest a{color:var(--accent);font-weight:600;text-decoration:none}
+  .status{font-size:11px;color:var(--sec);margin-top:8px}
+  .footer{display:flex;justify-content:space-between;align-items:center;margin-top:9px;font-size:11px;color:var(--sec)}
+  kbd{font-family:inherit;font-size:10px;background:rgba(0,0,0,.07);border:1px solid var(--border);border-bottom-width:2px;border-radius:4px;padding:1px 5px}
+  .note{width:330px;font-size:11px;line-height:1.55;color:var(--sec);padding:0 4px}
+  .note b{color:var(--text)}
+</style>
+</head>
+<body>
+
+<div class="col before">
+  <h2>Before<span class="tag">current build</span></h2>
+  <div class="popover">
+    <div class="title">Parallel Project Desktops</div>
+    <div class="row current">
+      <span class="dot cur">◉</span><span class="glyph" style="color:#3385f5">▣</span>
+      <span class="name"><b>Sales</b></span><span class="pill">3</span><span class="chev">›</span><span class="more">•••</span>
+    </div>
+    <div class="row">
+      <span class="dot">○</span><span class="glyph" style="color:#2eb36b">⌁</span>
+      <span class="name">RevOS Build</span><span class="pill">5</span><span class="chev">›</span><span class="more">•••</span>
+    </div>
+    <div class="row">
+      <span class="dot">○</span><span class="glyph" style="color:#9a59e6">✎</span>
+      <span class="name">Content</span><span class="tri">▲</span><span class="pill none">—</span><span class="chev">›</span><span class="more">•••</span>
+    </div>
+    <div class="row">
+      <span class="dot">○</span><span class="glyph" style="color:#e68c1a">▤</span>
+      <span class="name">Admin · Desktop 11</span><span class="pill none">—</span><span class="chev">›</span><span class="more">•••</span>
+    </div>
+    <div class="divider"></div>
+    <div class="save"><input value="Save this desktop as…" readonly>
+      <div class="cap">Saves the apps open here as a project bound to this desktop.</div>
+    </div>
+    <div class="status">“Content”: desktop moved — Recalibrate from its menu.</div>
+    <div class="divider"></div>
+    <div style="font-size:12.5px">Quit</div>
+  </div>
+  <p class="note"><b>Problems visible here:</b> the drifted row (▲) is a dead end — clicking it only writes a status line telling you to hunt in •••. "Admin" sits on desktop 11 with no Ctrl+number shortcut, yet looks as ready as every other row. And nothing anywhere reveals the ⌃⌥Space jump panel exists.</p>
+</div>
+
+<div class="col after">
+  <h2>After<span class="tag">proposed</span></h2>
+  <div class="popover">
+    <div class="title">Parallel Project Desktops</div>
+    <div class="row current">
+      <span class="dot cur">◉</span><span class="glyph" style="color:#3385f5">▣</span>
+      <span class="name"><b>Sales</b></span><span class="pill">3</span><span class="chev">›</span><span class="more">•••</span>
+    </div>
+    <div class="row hovered">
+      <span class="dot">○</span><span class="glyph" style="color:#2eb36b">⌁</span>
+      <span class="name">RevOS Build</span>
+      <span style="color:var(--accent);font-size:11px" title="Bring up here">▶</span>
+      <span class="pill">5</span><span class="chev">›</span><span class="more">•••</span>
+    </div>
+    <div class="callout"><span class="lbl">drifted row, clicked →<br>inline recovery</span>
+      <div class="row">
+        <span class="dot">○</span><span class="glyph" style="color:#9a59e6">✎</span>
+        <span class="name">Content</span><span class="tri">▲</span><span class="pill none">—</span><span class="chev">›</span><span class="more">•••</span>
+      </div>
+      <div class="recal">
+        <span style="font-size:11px;color:var(--sec)">Its desktop is gone.</span>
+        <span class="btn primary">Recalibrate to this desktop</span>
+        <span class="btn">Not now</span>
+      </div>
+    </div>
+    <div class="row">
+      <span class="dot">○</span><span class="glyph" style="color:#e68c1a">▤</span>
+      <span class="name" style="color:var(--sec)">Admin</span>
+      <span class="nokey" title="Desktop 11 — no Ctrl+number shortcut"></span>
+      <span class="pill none">—</span><span class="chev">›</span><span class="more">•••</span>
+    </div>
+    <div class="divider"></div>
+    <div class="save"><input value="Save this desktop as…" readonly>
+      <div class="cap">Will capture: <span class="apps">VS Code, Terminal, Chrome</span></div>
+      <div class="suggest">⚠ Rebuilding a lost desktop? <a>Recalibrate “Content” here instead</a></div>
+    </div>
+    <div class="divider"></div>
+    <div class="footer"><span>Quit</span><span>Jump from anywhere: <kbd>⌃</kbd><kbd>⌥</kbd><kbd>Space</kbd></span></div>
+  </div>
+  <p class="note"><b>Changes:</b> ① drifted row click → inline recalibrate (primary action where the problem is); ② gray dot = "no shortcut for this desktop" readiness badge, name dimmed; ③ hover reveals ▶ Bring-up so the marquee action isn't buried in •••; ④ live "Will capture" preview before saving; ⑤ recalibrate suggestion prevents duplicate-workstream projects; ⑥ ⌃⌥Space finally advertised.</p>
+</div>
+
+</body>
+</html>
